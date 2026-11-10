@@ -13,6 +13,47 @@ const MIME_OK = ["application/pdf", "image/png", "image/jpeg"];
 const fmt = (iso: string) => new Date(iso).toLocaleString();
 const show = (v: unknown) => (v == null ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
+type Fields = Record<string, unknown>;
+const TYPE_ORDER = ["bill_of_lading", "airway_bill", "commercial_invoice", "packing_list"];
+const blank = (v: unknown) => v == null || v === "" || (Array.isArray(v) && v.length === 0);
+
+/** First value found for a field, preferring the listed document types in order. */
+function pick(docs: JobDocument[], get: (e: Fields) => unknown, order = TYPE_ORDER): unknown {
+  const sorted = docs.filter((d) => d.extracted && order.includes(d.doc_type))
+    .sort((a, b) => order.indexOf(a.doc_type) - order.indexOf(b.doc_type));
+  for (const d of sorted) {
+    const v = get(d.extracted as Fields);
+    if (!blank(v)) return v;
+  }
+  return null;
+}
+const partyName = (k: string) => (e: Fields) => (e[k] as { name?: string } | null)?.name;
+
+/** Shipment details read from the scanned documents, for display. */
+function shipmentSummary(docs: JobDocument[]): [string, string][] {
+  const num = (v: unknown) => (typeof v === "number" ? v.toLocaleString() : null);
+  const containers = [...new Set(docs.flatMap((d) => (d.extracted?.container_numbers as string[] | undefined) ?? []))];
+  const inv = ["commercial_invoice"];
+  const gross = pick(docs, (e) => e.gross_weight);
+  const pkgs = pick(docs, (e) => e.package_count);
+  const total = pick(docs, (e) => e.invoice_total, inv);
+  const rows: [string, unknown][] = [
+    ["Shipper", pick(docs, partyName("shipper"))],
+    ["Consignee", pick(docs, partyName("consignee"))],
+    ["BL / AWB no.", pick(docs, (e) => e.bl_awb_number)],
+    ["Vessel / voyage", [pick(docs, (e) => e.vessel), pick(docs, (e) => e.voyage)].filter(Boolean).join(" / ")],
+    ["Port of loading", pick(docs, (e) => e.port_of_loading)],
+    ["Port of discharge", pick(docs, (e) => e.port_of_discharge)],
+    ["Containers", containers.join(", ")],
+    ["Packages", pkgs == null ? null : `${num(pkgs)} ${pick(docs, (e) => e.package_type) ?? ""}`.trim()],
+    ["Gross weight", gross == null ? null : `${num(gross)} ${pick(docs, (e) => e.weight_unit) ?? ""}`.trim()],
+    ["Goods", pick(docs, (e) => e.goods_description)],
+    ["Invoice no.", pick(docs, (e) => e.invoice_number, inv)],
+    ["Invoice total", total == null ? null : `${pick(docs, (e) => e.currency, inv) ?? ""} ${num(total)}`.trim()],
+  ];
+  return rows.filter(([, v]) => !blank(v)).map(([k, v]) => [k, String(v)]);
+}
+
 export default function JobFile() {
   const { id } = useParams();
   const nav = useNavigate();
@@ -32,6 +73,7 @@ export default function JobFile() {
   const [busy, setBusy] = useState("");
   const [docType, setDocType] = useState<string>("bill_of_lading");
   const [openDoc, setOpenDoc] = useState<string | null>(null);
+  const [filled, setFilled] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     const [j, d, s, h] = await Promise.all([
@@ -89,6 +131,7 @@ export default function JobFile() {
     if (!files?.length) return;
     run("upload", async () => {
       const problems: string[] = [];
+      let uploaded = 0;
       for (const file of Array.from(files)) {
         if (!MIME_OK.includes(file.type)) { problems.push(`${file.name}: only PDF, PNG or JPG files are accepted`); continue; }
         if (file.size > MAX_BYTES) { problems.push(`${file.name}: larger than 10 MB`); continue; }
@@ -103,7 +146,12 @@ export default function JobFile() {
         if (ins.error) {
           await supabase.storage.from("job-docs").remove([path]);
           problems.push(`${file.name}: ${ins.error.message}`);
-        }
+        } else uploaded++;
+      }
+      if (editable && uploaded > 0 && SCANNED_TYPES.has(docType)) {
+        setBusy("scan");
+        const err = await scanAndFill(false);
+        if (err) problems.push(`Uploaded, but the automatic scan failed: ${err}`);
       }
       return problems.join("\n") || undefined;
     });
@@ -125,8 +173,9 @@ export default function JobFile() {
     });
   };
 
-  const scan = (force: boolean) => run("scan", async () => {
-    const { data, error } = await supabase.functions.invoke("scan-job", { body: { job_id: job.id, force } });
+  /** Run the scan, then copy shipment details into any job fields that are still empty. */
+  async function scanAndFill(force: boolean): Promise<string | undefined> {
+    const { data, error } = await supabase.functions.invoke("scan-job", { body: { job_id: job!.id, force } });
     if (error) {
       // Non-2xx: the function's own message is in the response body.
       const ctx = (error as { context?: Response }).context;
@@ -134,7 +183,36 @@ export default function JobFile() {
       return body?.error ?? error.message;
     }
     if (data?.error) return data.error;
-  });
+
+    const [j, d] = await Promise.all([
+      supabase.from("jobs").select("*").eq("id", job!.id).single(),
+      supabase.from("job_documents").select("*").eq("job_id", job!.id),
+    ]);
+    if (j.error || !j.data) return;
+    const cur = j.data as Job;
+    const read = (d.data as JobDocument[]) ?? [];
+    const transport = ["bill_of_lading", "airway_bill"];
+    const containers = [...new Set(read.flatMap((x) => (x.extracted?.container_numbers as string[] | undefined) ?? [])
+      .map((c) => c.toUpperCase().replace(/[^A-Z0-9]/g, "")))];
+    const patch: Record<string, unknown> = {};
+    const fill = (col: keyof Job, v: unknown) => { if (blank(cur[col]) && !blank(v)) patch[col] = v; };
+    fill("bl_awb_no", pick(read, (e) => e.bl_awb_number));
+    fill("booking_no", pick(read, (e) => e.booking_number));
+    fill("vessel", pick(read, (e) => e.vessel, transport));
+    fill("voyage", pick(read, (e) => e.voyage, transport));
+    fill("port_of_discharge", pick(read, (e) => e.port_of_discharge, transport));
+    fill("containers", containers);
+    if (Object.keys(patch).length === 0) return;
+    const up = await supabase.from("jobs").update(patch).eq("id", cur.id);
+    if (up.error) return `Scan finished, but the job details could not be filled in: ${up.error.message}`;
+    const names: Record<string, string> = {
+      bl_awb_no: "BL / AWB no.", booking_no: "Booking no.", vessel: "Vessel", voyage: "Voyage",
+      port_of_discharge: "Port of discharge", containers: "Containers",
+    };
+    setFilled(Object.keys(patch).map((k) => names[k] ?? pretty(k)));
+  }
+
+  const scan = (force: boolean) => run("scan", () => scanAndFill(force));
 
   const deleteJob = () => {
     if (!confirm(`Delete job ${job.job_no}? This cannot be undone.`)) return;
@@ -148,6 +226,7 @@ export default function JobFile() {
   const next = allowedNextStatuses(role, job.status);
   const scannable = docs.filter((d) => SCANNED_TYPES.has(d.doc_type));
   const latest = scans[0];
+  const summary = shipmentSummary(docs);
 
   return (
     <>
@@ -160,6 +239,9 @@ export default function JobFile() {
         </div>
       </div>
       {error && <p className="error pre">{error}</p>}
+      {filled.length > 0 && (
+        <p className="ok">Filled in from the scanned documents: {filled.join(", ")}. Check them against the originals.</p>
+      )}
 
       <section className="card">
         <div className="row spread">
@@ -192,6 +274,16 @@ export default function JobFile() {
         )}
       </section>
 
+      {summary.length > 0 && (
+        <section className="card">
+          <h2>Shipment summary</h2>
+          <p className="muted small">Read from the scanned documents. Check against the originals before filing.</p>
+          <dl className="details">
+            {summary.map(([k, v]) => <div key={k} className="pair"><dt>{k}</dt><dd>{v}</dd></div>)}
+          </dl>
+        </section>
+      )}
+
       <section className="card">
         <h2>Documents</h2>
         <div className="row">
@@ -201,8 +293,12 @@ export default function JobFile() {
           <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg" disabled={!!busy}
             onChange={(e) => { upload(e.target.files); e.target.value = ""; }} />
           {busy === "upload" && <span className="muted">Uploading…</span>}
+          {busy === "scan" && <span className="muted">Reading the documents… this can take a minute.</span>}
         </div>
-        <p className="muted small">PDF, PNG or JPG, up to 10 MB each. Choose the document type before picking files.</p>
+        <p className="muted small">
+          PDF, PNG or JPG, up to 10 MB each. Choose the document type before picking files.
+          {editable && " Bills of lading, airway bills, invoices and packing lists are read automatically after upload."}
+        </p>
         {docs.length === 0 ? <p className="muted">No documents uploaded yet.</p> : (
           <table>
             <thead><tr><th>Type</th><th>File</th><th>Uploaded</th><th>Scan</th><th></th></tr></thead>

@@ -217,8 +217,13 @@ export default function JobFile() {
   const deleteJob = () => {
     if (!confirm(`Delete job ${job.job_no}? This cannot be undone.`)) return;
     run("delete", async () => {
+      // Deleting the job removes its document records, so remove the stored files first.
+      if (docs.length) {
+        const rm = await supabase.storage.from("job-docs").remove(docs.map((d) => d.file_path));
+        if (rm.error) return `Could not delete this job's files: ${rm.error.message}`;
+      }
       const { error } = await supabase.from("jobs").delete().eq("id", job.id);
-      if (error) return error.message.includes("foreign key") ? "Delete this job's documents first." : error.message;
+      if (error) return error.message;
       nav("/");
     });
   };

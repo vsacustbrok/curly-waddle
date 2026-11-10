@@ -1,0 +1,59 @@
+:root {
+  --bg: #f4f5f7; --card: #fff; --text: #1c2430; --muted: #66707d; --line: #dde1e6;
+  --accent: #14508c; --error: #b3261e; --warn: #8a5a00; --ok: #1e6b3a;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 15px; color: var(--text);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); }
+main { max-width: 1280px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 1.4rem; margin: 8px 0 12px; }
+h2 { font-size: 1.05rem; margin: 0 0 10px; }
+a { color: var(--accent); }
+.topbar { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; background: var(--card); border-bottom: 1px solid var(--line); padding: 10px 16px; }
+.topbar nav { display: flex; gap: 14px; flex: 1; flex-wrap: wrap; }
+.topbar nav a { text-decoration: none; color: var(--muted); padding: 4px 0; border-bottom: 2px solid transparent; }
+.topbar nav a.active { color: var(--accent); border-color: var(--accent); }
+.who { display: flex; gap: 8px; align-items: center; font-size: .9rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.narrow { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 10px; }
+.center { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.spread { justify-content: space-between; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.grid .wide { grid-column: 1 / -1; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); }
+label.check { flex-direction: row; align-items: center; color: var(--text); }
+input, select, textarea { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--text); max-width: 100%; }
+input[type="checkbox"] { width: auto; }
+button { font: inherit; padding: 7px 14px; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+button.ghost { background: transparent; color: var(--accent); }
+button.small { padding: 3px 8px; font-size: .85rem; }
+button.link { background: none; border: none; color: var(--accent); padding: 2px 6px; }
+button.danger { background: var(--error); border-color: var(--error); }
+.danger-text { color: var(--error) !important; }
+.badge { font-size: .75rem; font-weight: 600; background: #e6eef7; color: var(--accent); border-radius: 999px; padding: 2px 9px; vertical-align: middle; }
+.muted { color: var(--muted); } .small { font-size: .82rem; }
+.error { color: var(--error); } .warn { color: var(--warn); } .ok { color: var(--ok); }
+.pre { white-space: pre-wrap; }
+.board { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; }
+.column { flex: 1 0 190px; background: #e9ecf0; border-radius: 8px; padding: 8px; min-height: 120px; }
+.column.focus { outline: 2px solid var(--accent); }
+.column h2 { font-size: .9rem; margin: 2px 4px 8px; }
+.count { color: var(--muted); font-weight: 400; }
+.jobcard { display: flex; flex-direction: column; gap: 2px; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; text-decoration: none; color: var(--text); }
+.jobcard:hover { border-color: var(--accent); }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .8rem; color: var(--muted); font-weight: 600; }
+td.right { text-align: right; white-space: nowrap; }
+tr.highlight { background: #fff8e1; }
+.card:has(table) { overflow-x: auto; }
+dl.details { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+dl.details dt { color: var(--muted); font-size: .85rem; } dl.details dd { margin: 0; overflow-wrap: anywhere; }
+dl.details .pair { display: contents; }
+.finding { border-left: 4px solid var(--warn); background: #fff8e1; padding: 8px 12px; margin: 8px 0; border-radius: 4px; }
+.finding.error { border-color: var(--error); background: #fdecea; color: var(--text); }
+.finding ul, details ul { margin: 6px 0 0; padding-left: 18px; }
+ul.plain { list-style: none; padding: 0; margin: 0; } ul.plain li { padding: 3px 0; }
+details summary { cursor: pointer; color: var(--ok); margin-top: 8px; }

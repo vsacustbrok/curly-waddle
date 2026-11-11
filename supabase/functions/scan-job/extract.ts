@@ -8,8 +8,8 @@ const nullable = (t: string) => ({ type: [t, "null"] });
 const str = { type: "string" };
 const party = {
   type: "object",
-  properties: { name: str, address: str },
-  required: ["name", "address"],
+  properties: { name: str, address: str, contact: str },
+  required: ["name", "address", "contact"],
   additionalProperties: false,
 };
 
@@ -60,6 +60,12 @@ const DOC_SCHEMA = {
     sps_permitted_weight: nullable("number"),
     sps_permitted_weight_unit: str,
     country_of_origin: str,
+    un_number: str,
+    hazard_class: str,
+    packing_group: str,
+    dg_emergency_contact: str,
+    signed: { type: "string", enum: ["yes", "no", "unclear"] },
+    stamped: { type: "string", enum: ["yes", "no", "unclear"] },
     line_items: {
       type: "array",
       items: {
@@ -83,7 +89,8 @@ const DOC_SCHEMA = {
     "net_weight", "weight_unit", "package_count", "package_type", "volume_cbm",
     "goods_description", "hs_codes", "currency", "incoterm", "invoice_total", "issue_date",
     "shipped_on_board_date", "sps_must_ship_out_date", "sps_valid_until", "sps_permitted_weight",
-    "sps_permitted_weight_unit", "country_of_origin", "line_items", "notes",
+    "sps_permitted_weight_unit", "country_of_origin", "un_number", "hazard_class", "packing_group",
+    "dg_emergency_contact", "signed", "stamped", "line_items", "notes",
   ],
   additionalProperties: false,
 } as const;
@@ -114,6 +121,10 @@ Field guidance:
 - shipped_on_board_date: the "shipped on board" / "laden on board" date of a bill of lading, or the flight date of an air waybill. It is not the date of issue unless the document says the goods were shipped on that date.
 - sps_import_clearance is a Philippine Sanitary and Phytosanitary Import Clearance (SPSIC) from the Bureau of Animal Industry, Bureau of Plant Industry or BFAR. For it: document_number is the clearance number, consignee is the importer, shipper is the exporter or supplier, goods_description is the commodity, issue_date is the date issued, sps_must_ship_out_date is the "must ship out" date (the last day the goods may leave the origin), sps_valid_until is the validity or expiry date if printed separately, and sps_permitted_weight with sps_permitted_weight_unit is the quantity or volume allowed, when stated as a weight. Leave the sps_ fields empty on every other kind of document.
 - country_of_origin: as printed, on any document that states it.
+- shipper, consignee, notify_party: contact is the telephone or mobile number printed with that party, as printed; leave it empty if only an email or nothing is shown.
+- hs_codes: every HS / tariff code printed on the document.
+- un_number, hazard_class, packing_group, dg_emergency_contact: fill these only when the document declares dangerous goods (for example "UN 1263, Class 3, PG II"); leave them empty otherwise.
+- signed: "yes" if the document carries a handwritten or digital signature of its issuer, "no" if the signature space is blank or the document is marked draft / unsigned, "unclear" if you cannot tell. stamped: the same for an official stamp or seal (carrier, shipper, chamber of commerce, government agency).
 - notes: anything a broker should notice, such as illegible areas, handwritten corrections, or several documents in one file. Otherwise an empty string.`;
 
 export type ExtractOutcome =

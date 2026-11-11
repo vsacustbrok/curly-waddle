@@ -25,15 +25,18 @@ export function primaryType(parts: Extracted[]): string | null {
   return parts[0]?.doc_type_detected ?? null;
 }
 
-/** Every BL / AWB, invoice, packing list and SPS clearance found in the files, as check inputs. */
-export function toDocInputs(rows: DocRow[]): DocInput[] {
+/**
+ * Every BL / AWB, invoice, packing list and SPS clearance found in the files, as check inputs.
+ * Pass types = null to get every document, including certificates and other papers.
+ */
+export function toDocInputs(rows: DocRow[], types: string[] | null = CHECKED_TYPES): DocInput[] {
   const out: DocInput[] = [];
   for (const r of rows) {
     const parts = partsOf(r.extracted);
     parts.forEach((p, i) => {
       // A single-document file keeps the type its uploader chose; otherwise use what was detected.
       const type = parts.length === 1 && r.doc_type !== "other" ? r.doc_type : (p.doc_type_detected ?? r.doc_type);
-      if (!CHECKED_TYPES.includes(type)) return;
+      if (types && !types.includes(type)) return;
       out.push({
         id: `${r.id}#${i}`,
         file_name: parts.length > 1 ? `${r.file_name} (document ${i + 1} of ${parts.length})` : r.file_name,

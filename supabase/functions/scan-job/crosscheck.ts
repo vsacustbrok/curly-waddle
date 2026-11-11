@@ -2,7 +2,7 @@
 // No model calls here: every pass/fail decision is made in code so it is
 // repeatable and auditable.
 
-export type Party = { name?: string | null; address?: string | null };
+export type Party = { name?: string | null; address?: string | null; contact?: string | null };
 
 export type Extracted = {
   doc_type_detected?: string | null;
@@ -39,6 +39,13 @@ export type Extracted = {
   sps_permitted_weight?: number | null;
   sps_permitted_weight_unit?: string | null;
   country_of_origin?: string | null;
+  un_number?: string | null;
+  hazard_class?: string | null;
+  packing_group?: string | null;
+  dg_emergency_contact?: string | null;
+  /** "yes", "no" or "unclear". */
+  signed?: string | null;
+  stamped?: string | null;
   line_items?: Array<{
     description?: string | null;
     quantity?: number | null;

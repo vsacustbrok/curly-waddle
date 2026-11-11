@@ -66,7 +66,7 @@ export default function Board() {
           {columns.map((s) => {
             const list = filtered.filter((j) => j.status === s);
             return (
-              <section key={s} className={"column" + (FOCUS[role].includes(s) ? " focus" : "")}>
+              <section key={s} className={"column col-" + s + (FOCUS[role].includes(s) ? " focus" : "")}>
                 <h2>{STATUS_LABEL[s]} <span className="count">{list.length}</span></h2>
                 {list.map((j) => (
                   <Link key={j.id} to={`/jobs/${j.id}`} className="jobcard">

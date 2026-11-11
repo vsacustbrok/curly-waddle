@@ -26,6 +26,15 @@ export default function JobNew() {
   const [busy, setBusy] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [step, setStep] = useState("");
+  const [since, setSince] = useState<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (since == null) return;
+    const tick = () => setElapsed(Math.floor((Date.now() - since) / 1000));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [since]);
 
   useEffect(() => {
     supabase.from("clients").select("*").order("name").then(({ data }) => setClients((data as Client[]) ?? []));
@@ -39,6 +48,7 @@ export default function JobNew() {
   async function createFromDocuments() {
     setBusy(true);
     setError("");
+    setSince(Date.now());
     try {
       setStep("Creating the shipment…");
       const client_id = await placeholderClientId();
@@ -53,7 +63,7 @@ export default function JobNew() {
         throw new Error(`No file could be uploaded.\n${up.problems.join("\n")}`);
       }
 
-      setStep("Reading the documents… this can take a minute or two.");
+      setStep("Reading and checking the documents…");
       const scan = await runScan(job.data.id, false);
       const notes = [...up.problems];
       if (scan.error) notes.push(`The documents were uploaded, but reading them failed: ${scan.error}`);
@@ -62,6 +72,7 @@ export default function JobNew() {
       setError((e as Error).message);
       setBusy(false);
       setStep("");
+      setSince(null);
     }
   }
 
@@ -86,13 +97,17 @@ export default function JobNew() {
           them, fills in the shipment and its client, and cross-checks the documents. Nothing to type.
         </p>
         <div className="row">
-          <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg" disabled={busy}
-            onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+          <label className={"filepick" + (busy ? " disabled" : "")}>
+            {files.length ? "Choose different files" : "Choose documents"}
+            <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg" disabled={busy}
+              onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+          </label>
           <button disabled={busy || files.length === 0 || fileProblems.length > 0} onClick={createFromDocuments}>
             {busy && step ? "Working…" : `Create shipment from ${files.length || "the"} file(s)`}
           </button>
         </div>
-        {step && <p className="muted">{step}</p>}
+        {files.length > 0 && !busy && <p className="small">{files.map((f) => f.name).join(", ")}</p>}
+        {step && <p className="working">{step} {elapsed} s</p>}
         {fileProblems.map((p) => <p key={p} className="error small">{p}</p>)}
         <p className="muted small">PDF, PNG or JPG, up to 10 MB each. Several documents scanned into one PDF are fine.</p>
       </section>

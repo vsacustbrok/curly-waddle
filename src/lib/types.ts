@@ -18,6 +18,27 @@ export const PLACEHOLDER_CLIENT = "Unassigned (to be confirmed)";
 export const pretty = (s: string) =>
   s === "sps_import_clearance" ? "SPS import clearance" : s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
+/** Plain names for the checks, shown instead of their internal codes. */
+const CHECK_LABEL: Record<string, string> = {
+  shipper_match: "Shipper name", consignee_match: "Consignee name", consignee_vs_client: "Consignee and client",
+  bl_number_match: "BL / AWB number", containers_match: "Container numbers", container_check_digit: "Container number looks mistyped",
+  gross_weight_match: "Gross weight", net_weight_match: "Net weight", net_vs_gross: "Net weight above gross weight",
+  package_count_match: "Number of packages", invoice_total: "Invoice total", invoice_line_math: "Invoice line arithmetic",
+  invoice_currency: "Invoice currency", goods_description_match: "Goods description", vessel_match: "Vessel", voyage_match: "Voyage",
+  documents_present: "Missing document", extraction: "File could not be read", eta: "Arrival date (ETA)", client: "Client",
+  job_details: "Job details", sps_vs_bl: "SPS and bill of lading", sps_consignee_match: "SPS importer", sps_shipper_match: "SPS exporter",
+  sps_goods_match: "SPS commodity", sps_must_ship_out: "SPS must-ship-out date", sps_weight: "SPS weight (3% tolerance)",
+  sps_validity: "SPS validity", notify_party_match: "Notify party", shipper_address: "Shipper address", consignee_address: "Consignee address",
+  notify_party_address: "Notify party address", shipper_contact: "Shipper contact number", consignee_contact: "Consignee contact number",
+  notify_party_contact: "Notify party contact number", invoice_vs_packing_items: "Invoice and packing list items",
+  hs_code_present: "HS code missing", hs_code_match: "HS codes", dangerous_goods_details: "Dangerous goods details",
+  dangerous_goods_un_match: "Dangerous goods UN number", volume_match: "Volume (CBM)", incoterm_present: "Incoterm missing",
+  incoterm_match: "Incoterms", country_of_origin_match: "Country of origin", signature: "Signature", stamp: "Stamp or seal",
+};
+export const checkLabel = (check: string) => CHECK_LABEL[check] ?? pretty(check);
+/** "bill_of_lading: file.pdf" -> "Bill of lading: file.pdf" */
+export const prettySource = (source: string) => source.replace(/^[a-z_]+(?=:)/, (t) => (t === "job" ? "Job record" : pretty(t)));
+
 export type Profile = { id: string; email: string | null; full_name: string; role: Role; created_at: string };
 export type Client = {
   id: string; name: string; tin: string | null; address: string | null;

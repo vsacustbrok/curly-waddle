@@ -1,6 +1,5 @@
 // Uploading documents and running the scan, shared by the job file and the
 // "new shipment from documents" screen.
-import { FunctionRegion } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 
 export const MAX_BYTES = 10 * 1024 * 1024;
@@ -43,10 +42,10 @@ export type ScanOutcome = { error?: string; filled: string[] };
 /** Read the job's documents, fill in its empty details and cross-check them. */
 export async function runScan(jobId: string, force: boolean): Promise<ScanOutcome> {
   // Run the check in the same region as the database (Singapore): it makes many short
-  // database calls, and from any other region each one crosses the ocean.
-  const { data, error } = await supabase.functions.invoke("scan-job", {
+  // database calls, and from any other region each one crosses the ocean. The region goes
+  // in the address rather than an x-region header, which the browser would have to pre-clear.
+  const { data, error } = await supabase.functions.invoke("scan-job?forceFunctionRegion=ap-southeast-1", {
     body: { job_id: jobId, force },
-    region: FunctionRegion.ApSoutheast1,
   });
   if (error) {
     // Non-2xx: the function's own message is in the response body.

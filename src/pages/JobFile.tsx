@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import {
-  DOC_TYPES, PLACEHOLDER_CLIENT, STATUS_LABEL, allowedNextStatuses, canEditJobs, pretty,
+  DOC_TYPES, PLACEHOLDER_CLIENT, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, pretty, prettySource,
   type Client, type Job, type JobDocument, type JobStatus, type Profile, type ScanResult, type StatusHistory,
 } from "../lib/types";
 import { partsOf, summarize, summaryRows } from "../lib/shipment";
@@ -161,7 +161,7 @@ export default function JobFile() {
   return (
     <>
       <div className="row spread">
-        <h1>{job.job_no} <span className="badge">{STATUS_LABEL[job.status]}</span></h1>
+        <h1>{job.job_no} <span className={"badge status-" + job.status}>{STATUS_LABEL[job.status]}</span></h1>
         <div className="row">
           {next.map((s) => (
             <button key={s} disabled={!!busy} onClick={() => setStatus(s)}>Mark {STATUS_LABEL[s]}</button>
@@ -227,10 +227,13 @@ export default function JobFile() {
             <option value="other">Detect the type automatically</option>
             {DOC_TYPES.filter((t) => t !== "other").map((t) => <option key={t} value={t}>{pretty(t)}</option>)}
           </select>
-          <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg" disabled={!!busy}
-            onChange={(e) => { upload(e.target.files); e.target.value = ""; }} />
-          {busy === "upload" && <span className="muted">Uploading… {elapsed} s</span>}
-          {busy === "scan" && <span className="muted">Reading the documents… {elapsed} s</span>}
+          <label className={"filepick" + (busy ? " disabled" : "")}>
+            + Add documents
+            <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg" disabled={!!busy}
+              onChange={(e) => { upload(e.target.files); e.target.value = ""; }} />
+          </label>
+          {busy === "upload" && <span className="working">Uploading… {elapsed} s</span>}
+          {busy === "scan" && <span className="working">Reading the documents… {elapsed} s</span>}
         </div>
         <p className="muted small">
           PDF, PNG or JPG, up to 10 MB each.
@@ -264,32 +267,38 @@ export default function JobFile() {
           )}
         </div>
         <p className="muted small">
-          Checks that the Bill of Lading / Airway Bill, Commercial Invoice and Packing List agree on shipper, consignee,
-          BL number, containers, weights, packages, invoice totals and goods description.
+          Compares the documents with each other: parties, BL number, containers, weights, packages, invoice totals,
+          goods, HS codes, Incoterms, origin, and the SPS clearance against the bill of lading.
         </p>
         {!latest ? <p className="muted">The documents have not been checked yet.</p> : (
           <>
-            <p>
-              Last run {fmt(latest.run_at)} · {latest.docs_scanned} file(s) read ·{" "}
-              {latest.duration_ms != null && <>took {secs(latest.duration_ms)} ·{" "}</>}
-              <span className={latest.error_count ? "error" : "ok"}>{latest.error_count} error(s)</span> ·{" "}
-              <span className={latest.warning_count ? "warn" : "ok"}>{latest.warning_count} warning(s)</span>
-            </p>
-            {latest.issues.map((i, k) => (
+            <div className={"verdict " + (latest.error_count ? "bad" : latest.warning_count ? "review" : "good")}>
+              <strong>
+                {latest.error_count
+                  ? `${latest.error_count} problem${latest.error_count === 1 ? "" : "s"} to fix`
+                  : latest.warning_count ? "No errors found" : "All checks passed"}
+                {latest.warning_count > 0 && ` · ${latest.warning_count} item${latest.warning_count === 1 ? "" : "s"} to review`}
+              </strong>
+              <span className="small">
+                {latest.docs_scanned} file(s) read · {latest.matches.length} check(s) passed
+                {latest.duration_ms != null && <> · took {secs(latest.duration_ms)}</>} · {fmt(latest.run_at)}
+              </span>
+            </div>
+            {[...latest.issues].sort((a, b) => Number(b.severity === "error") - Number(a.severity === "error")).map((i, k) => (
               <div key={k} className={"finding " + i.severity}>
-                <strong>{i.severity === "error" ? "Error" : "Warning"} · {pretty(i.check)}</strong>
+                <strong><span className="tag">{i.severity === "error" ? "Fix" : "Review"}</span> {checkLabel(i.check)}</strong>
                 <div>{i.message}</div>
                 {i.values?.length > 0 && (
-                  <ul>{i.values.map((v, n) => <li key={n}><span className="muted">{v.source}:</span> {show(v.value)}</li>)}</ul>
+                  <ul>{i.values.map((v, n) => <li key={n}><span className="muted">{prettySource(v.source)}:</span> {show(v.value)}</li>)}</ul>
                 )}
               </div>
             ))}
             {latest.matches.length > 0 && (
               <details>
-                <summary>{latest.matches.length} check(s) passed</summary>
+                <summary>Show the {latest.matches.length} check(s) that passed</summary>
                 <ul>
                   {latest.matches.map((m, k) => (
-                    <li key={k}><strong>{pretty(m.check)}</strong>: {show(m.value)} <span className="muted small">({m.sources.join("; ")})</span></li>
+                    <li key={k}><strong>{checkLabel(m.check)}</strong>: {show(m.value)} <span className="muted small">({m.sources.map(prettySource).join("; ")})</span></li>
                   ))}
                 </ul>
               </details>

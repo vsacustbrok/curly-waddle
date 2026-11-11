@@ -4,7 +4,15 @@ import { nameTokens, normContainer, type DocInput, type Extracted } from "./cros
 
 export const CORE_TYPES = ["bill_of_lading", "airway_bill", "commercial_invoice", "packing_list"];
 /** Documents that take part in the checks: the shipping documents plus SPS import clearances. */
-const CHECKED_TYPES = [...CORE_TYPES, "sps_import_clearance"];
+const CHECKED_TYPES = [...CORE_TYPES, "sps_import_clearance", "arrival_notice"];
+const isoDate = (v: unknown): string | null => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) ? v : null);
+
+/** Shipping lines by the four-letter prefix of their bill of lading numbers. */
+const BL_PREFIX_CARRIER: Record<string, string> = {
+  MAEU: "Maersk", MEDU: "MSC", CMDU: "CMA CGM", COSU: "COSCO", EGLV: "Evergreen", HLCU: "Hapag-Lloyd",
+  ONEY: "ONE (Ocean Network Express)", OOLU: "OOCL", YMLU: "Yang Ming", ZIMU: "ZIM", HDMU: "HMM", WHLC: "Wan Hai",
+  SITC: "SITC", APLU: "APL", SMLM: "SM Line", KMTC: "KMTC",
+};
 const TRANSPORT = ["bill_of_lading", "airway_bill"];
 /** Client that new shipments sit under until a consignee has been read. Keep in sync with src/lib/types.ts. */
 export const PLACEHOLDER_CLIENT = "Unassigned (to be confirmed)";
@@ -68,7 +76,23 @@ export type JobFields = {
   voyage: string | null;
   port_of_discharge: string | null;
   containers: string[] | null;
+  eta: string | null;
+  carrier: string | null;
 };
+
+/** Where to look for the ETA and carrier: the arrival notice first, then the transport document, then the rest. */
+const ARRIVAL_FIRST = ["arrival_notice", ...TRANSPORT, "commercial_invoice", "packing_list"];
+
+/** The ETA printed on the documents, preferring the arrival notice. */
+export function etaOf(docs: DocInput[]): { date: string; source: string } | null {
+  for (const t of ARRIVAL_FIRST) {
+    for (const d of docs) {
+      const date = d.doc_type === t ? isoDate(d.extracted?.eta_date) : null;
+      if (date) return { date, source: `${d.doc_type}: ${d.file_name}` };
+    }
+  }
+  return null;
+}
 
 /** Values to copy into job fields that are still empty. Never overwrites what is already there. */
 export function jobPatch(job: JobFields, docs: DocInput[]): Partial<JobFields> {
@@ -91,6 +115,9 @@ export function jobPatch(job: JobFields, docs: DocInput[]): Partial<JobFields> {
   ];
   const transport = containersFrom(TRANSPORT);
   fill("containers", transport.length ? transport : containersFrom(CORE_TYPES));
+  fill("eta", etaOf(docs)?.date);
+  const blNo = (first(docs, (e) => e.bl_awb_number, TRANSPORT) ?? job.bl_awb_no ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  fill("carrier", first(docs, (e) => e.carrier_name, ["arrival_notice", ...TRANSPORT]) ?? BL_PREFIX_CARRIER[blNo.slice(0, 4)]);
   return patch as Partial<JobFields>;
 }
 

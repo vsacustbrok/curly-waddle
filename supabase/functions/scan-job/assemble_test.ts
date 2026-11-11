@@ -51,7 +51,7 @@ Deno.test("a single-document file keeps the type its uploader chose", () => {
 
 Deno.test("jobPatch fills only empty fields and takes them from the transport document", () => {
   const inputs = toDocInputs([combined]);
-  const empty = { bl_awb_no: null, booking_no: "", vessel: null, voyage: null, port_of_discharge: null, containers: [] };
+  const empty = { bl_awb_no: null, booking_no: "", vessel: null, voyage: null, port_of_discharge: null, containers: [], eta: "2026-01-01", carrier: "x" };
   assertEquals(jobPatch(empty, inputs), {
     bl_awb_no: "MEDUPB734499", vessel: "VICKY B", voyage: "0114B", port_of_discharge: "Manila North", containers: ["MEDU9827902"],
   });
@@ -69,4 +69,23 @@ Deno.test("consignee and company matching", () => {
   assert(!sameCompany("Acme Foods Inc", "Acme Steel Inc"));
   assert(!sameCompany("Acme", "Acme Foods"));
   assert(!sameCompany("Inc.", "Corp."));
+});
+
+Deno.test("ETA and carrier are filled from the documents, arrival notice first", async () => {
+  const { etaOf } = await import("./assemble.ts");
+  const empty = { bl_awb_no: null, booking_no: null, vessel: null, voyage: null, port_of_discharge: null, containers: [], eta: null, carrier: null };
+  const blDoc = { id: "b", doc_type: "bill_of_lading", file_name: "bl.pdf", extracted: { parts: [{ ...bl, eta_date: "2026-12-01" }] } };
+  const an = { id: "n", doc_type: "other", file_name: "an.pdf", extracted: { parts: [{ doc_type_detected: "arrival_notice", eta_date: "2026-12-05", carrier_name: "MSC Mediterranean Shipping Company" }] } };
+  const both = toDocInputs([blDoc, an]);
+  assertEquals(etaOf(both), { date: "2026-12-05", source: "arrival_notice: an.pdf" });
+  const p = jobPatch(empty, both);
+  assertEquals([p.eta, p.carrier], ["2026-12-05", "MSC Mediterranean Shipping Company"]);
+  // no arrival notice: ETA from the BL, carrier from the BL number prefix (MEDU = MSC)
+  const q = jobPatch(empty, toDocInputs([blDoc]));
+  assertEquals([q.eta, q.carrier], ["2026-12-01", "MSC"]);
+  // an ETA or carrier already on the job is kept; a date that is not a real ISO date is ignored
+  const kept = jobPatch({ ...empty, eta: "2026-11-30", carrier: "Typed by hand" }, both);
+  assert(!("eta" in kept) && !("carrier" in kept));
+  assertEquals(etaOf(toDocInputs([{ ...an, extracted: { parts: [{ doc_type_detected: "arrival_notice", eta_date: "05/12/2026" }] } }])), null);
+  assertEquals(primaryType([{ doc_type_detected: "other" }, { doc_type_detected: "arrival_notice" }]), "arrival_notice");
 });

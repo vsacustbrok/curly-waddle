@@ -39,6 +39,9 @@ export type Extracted = {
   sps_permitted_weight?: number | null;
   sps_permitted_weight_unit?: string | null;
   country_of_origin?: string | null;
+  /** Estimated arrival at the port of discharge, ISO date. */
+  eta_date?: string | null;
+  carrier_name?: string | null;
   un_number?: string | null;
   hazard_class?: string | null;
   packing_group?: string | null;

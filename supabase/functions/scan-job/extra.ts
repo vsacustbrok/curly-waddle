@@ -174,7 +174,7 @@ export function extraChecks(docs: DocInput[], all: DocInput[], today: string): {
   }
 
   // --- signatures and stamps ---
-  for (const d of docs.filter((x) => x.extracted)) {
+  for (const d of docs.filter((x) => x.extracted && (SHIPPING.includes(x.doc_type) || x.doc_type === SPS))) {
     if (e(d).signed === "no") warn("signature", `No signature was seen on ${d.file_name} (${d.doc_type.replace(/_/g, " ")}).`);
     if ((TRANSPORT.includes(d.doc_type) || d.doc_type === SPS) && e(d).stamped === "no") {
       warn("stamp", `No official stamp or seal was seen on ${d.file_name} (${d.doc_type.replace(/_/g, " ")}).`);

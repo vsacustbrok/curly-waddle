@@ -13,7 +13,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import Anthropic from "npm:@anthropic-ai/sdk@1.6.0";
 import { crossCheck, type Issue } from "./crosscheck.ts";
 import { extractDocument, MODEL } from "./extract.ts";
-import { consigneeOf, jobPatch, PLACEHOLDER_CLIENT, primaryType, sameCompany, toDocInputs } from "./assemble.ts";
+import { consigneeOf, etaOf, jobPatch, PLACEHOLDER_CLIENT, primaryType, sameCompany, toDocInputs } from "./assemble.ts";
 import { spsChecks } from "./sps.ts";
 import { extraChecks } from "./extra.ts";
 
@@ -40,6 +40,8 @@ const FIELD_LABELS: Record<string, string> = {
   voyage: "Voyage",
   port_of_discharge: "Port of discharge",
   containers: "Containers",
+  eta: "ETA",
+  carrier: "Carrier",
   client_id: "Client",
 };
 
@@ -75,7 +77,7 @@ Deno.serve(async (req) => {
 
   const { data: job, error: jobErr } = await admin
     .from("jobs")
-    .select("id, job_no, client_id, bl_awb_no, booking_no, containers, vessel, voyage, port_of_discharge, clients(name)")
+    .select("id, job_no, client_id, bl_awb_no, booking_no, containers, vessel, voyage, port_of_discharge, eta, carrier, clients(name)")
     .eq("id", body.job_id)
     .maybeSingle();
   if (jobErr) return json({ error: jobErr.message }, 500);
@@ -165,6 +167,17 @@ Deno.serve(async (req) => {
   const clientRow = Array.isArray(job.clients) ? job.clients[0] : job.clients;
   let clientName: string | null = (clientRow as { name?: string } | null)?.name ?? null;
   const patch: Record<string, unknown> = { ...jobPatch(job, inputs) };
+
+  // An ETA already on the job is never overwritten, but a different date on the documents is worth knowing.
+  const docEta = etaOf(inputs);
+  if (job.eta && docEta && docEta.date !== job.eta) {
+    issues.push({
+      severity: "warning",
+      check: "eta",
+      message: `The documents show ETA ${docEta.date}, but the job has ETA ${job.eta}. Update the job if the arrival date has changed.`,
+      values: [{ source: "job: ETA", value: job.eta }, { source: docEta.source, value: docEta.date }],
+    });
+  }
 
   if (clientName === PLACEHOLDER_CLIENT) {
     const consignee = consigneeOf(inputs);

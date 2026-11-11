@@ -42,6 +42,7 @@ export type Match = { check: string; value: unknown; sources: string[] };
 export type ScanResult = {
   id: string; job_id: string; run_at: string; docs_scanned: number;
   error_count: number; warning_count: number; issues: Issue[]; matches: Match[];
+  duration_ms: number | null;
 };
 export type StatusHistory = {
   id: number; from_status: JobStatus | null; to_status: JobStatus; changed_by_name: string | null; changed_at: string;

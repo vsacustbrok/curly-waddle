@@ -17,13 +17,14 @@ export function fileProblem(file: File): string | null {
 export async function uploadDocs(jobId: string, files: File[], docType: string, userId: string) {
   const problems: string[] = [];
   let uploaded = 0;
-  for (const file of files) {
+  // Files go up side by side: the wait is for the slowest file, not the sum of them.
+  await Promise.all(files.map(async (file) => {
     const problem = fileProblem(file);
-    if (problem) { problems.push(problem); continue; }
+    if (problem) { problems.push(problem); return; }
     const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase().replace(/[^a-z0-9]/g, "") : "bin";
     const path = `${jobId}/${crypto.randomUUID()}.${ext}`;
     const up = await supabase.storage.from("job-docs").upload(path, file, { contentType: file.type });
-    if (up.error) { problems.push(`${file.name}: ${up.error.message}`); continue; }
+    if (up.error) { problems.push(`${file.name}: ${up.error.message}`); return; }
     const ins = await supabase.from("job_documents").insert({
       job_id: jobId, doc_type: docType, file_path: path, file_name: file.name,
       mime_type: file.type, size_bytes: file.size, uploaded_by: userId,
@@ -32,7 +33,7 @@ export async function uploadDocs(jobId: string, files: File[], docType: string, 
       await supabase.storage.from("job-docs").remove([path]);
       problems.push(`${file.name}: ${ins.error.message}`);
     } else uploaded++;
-  }
+  }));
   return { uploaded, problems };
 }
 

@@ -11,6 +11,7 @@ import { runScan, uploadDocs } from "../lib/docs";
 import JobFields, { fromJob, toRow, type JobForm } from "./JobFields";
 
 const fmt = (iso: string) => new Date(iso).toLocaleString();
+const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 const show = (v: unknown) => (v == null ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
 export default function JobFile() {
@@ -35,6 +36,16 @@ export default function JobFile() {
   const [docType, setDocType] = useState<string>("other");
   const [openDoc, setOpenDoc] = useState<string | null>(null);
   const [filled, setFilled] = useState<string[]>(arrived.filled ?? []);
+  // A running clock while documents are uploading or being read.
+  const [since, setSince] = useState<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (since == null) return;
+    const tick = () => setElapsed(Math.floor((Date.now() - since) / 1000));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [since]);
 
   const load = useCallback(async () => {
     const [j, d, s, h] = await Promise.all([
@@ -64,6 +75,7 @@ export default function JobFile() {
   async function run(label: string, fn: () => Promise<string | void>) {
     setBusy(label);
     setError("");
+    if (label === "upload" || label === "scan") setSince(Date.now());
     try {
       const err = await fn();
       if (err) setError(err);
@@ -71,6 +83,7 @@ export default function JobFile() {
       setError((e as Error).message);
     }
     setBusy("");
+    setSince(null);
     await load();
   }
 
@@ -216,8 +229,8 @@ export default function JobFile() {
           </select>
           <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg" disabled={!!busy}
             onChange={(e) => { upload(e.target.files); e.target.value = ""; }} />
-          {busy === "upload" && <span className="muted">Uploading…</span>}
-          {busy === "scan" && <span className="muted">Reading the documents… this can take a minute or two.</span>}
+          {busy === "upload" && <span className="muted">Uploading… {elapsed} s</span>}
+          {busy === "scan" && <span className="muted">Reading the documents… {elapsed} s</span>}
         </div>
         <p className="muted small">
           PDF, PNG or JPG, up to 10 MB each.
@@ -242,7 +255,7 @@ export default function JobFile() {
           {editable && (
             <div className="row">
               <button disabled={!!busy || docs.length === 0} onClick={() => scan(false)}>
-                {busy === "scan" ? "Checking…" : "Check documents"}
+                {busy === "scan" ? `Checking… ${elapsed} s` : "Check documents"}
               </button>
               {docs.some((d) => d.extracted) && (
                 <button className="ghost" disabled={!!busy} onClick={() => scan(true)}>Re-read all</button>
@@ -258,6 +271,7 @@ export default function JobFile() {
           <>
             <p>
               Last run {fmt(latest.run_at)} · {latest.docs_scanned} file(s) read ·{" "}
+              {latest.duration_ms != null && <>took {secs(latest.duration_ms)} ·{" "}</>}
               <span className={latest.error_count ? "error" : "ok"}>{latest.error_count} error(s)</span> ·{" "}
               <span className={latest.warning_count ? "warn" : "ok"}>{latest.warning_count} warning(s)</span>
             </p>
@@ -305,7 +319,13 @@ function DocRow({ d, open, canDelete, onToggle, onView, onDelete }: {
   d: JobDocument; open: boolean; canDelete: boolean; onToggle: () => void; onView: () => void; onDelete: () => void;
 }) {
   const parts = partsOf(d);
-  const state = d.extracted ? <button className="link" onClick={onToggle}>{open ? "Hide fields" : "Show fields"}</button>
+  const readMs = typeof d.extracted?._ms === "number" ? d.extracted._ms : null;
+  const state = d.extracted ? (
+    <>
+      <button className="link" onClick={onToggle}>{open ? "Hide fields" : "Show fields"}</button>
+      {readMs != null && <span className="muted small"> read in {secs(readMs)}</span>}
+    </>
+  )
     : d.extract_error ? <span className="error">Failed</span>
     : <span className="muted">Not read yet</span>;
   return (

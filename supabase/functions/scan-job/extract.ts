@@ -129,14 +129,18 @@ Field guidance:
 - signed: one of the words yes, no, unclear. Use "yes" if the document carries a handwritten or digital signature of its issuer, "no" if the signature space is blank or the document is marked draft / unsigned, "unclear" if you cannot tell. stamped: the same for an official stamp or seal (carrier, shipper, chamber of commerce, government agency).
 - notes: anything a broker should notice, such as illegible areas, handwritten corrections, or several documents in one file. Otherwise an empty string.`;
 
+export type ExtractOptions = { effort: "low" | "medium"; fast: boolean };
+
 export type ExtractOutcome =
-  | { ok: true; parts: Extracted[]; model: string; usage: unknown }
+  | { ok: true; parts: Extracted[]; model: string; usage: unknown; ms: number; speed: string }
   | { ok: false; error: string };
 
 export async function extractDocument(
   client: Anthropic,
   file: { bytes: Uint8Array; mime: string; name: string; declaredType: string },
+  opts: ExtractOptions = { effort: "medium", fast: false },
 ): Promise<ExtractOutcome> {
+  const started = Date.now();
   const b64 = toBase64(file.bytes);
   const source =
     file.mime === "application/pdf"
@@ -146,15 +150,16 @@ export async function extractDocument(
         source: { type: "base64", media_type: file.mime as "image/png" | "image/jpeg", data: b64 },
       } as const);
 
-  try {
-    const response = await client.beta.messages.create({
+  const request = (fast: boolean) =>
+    client.beta.messages.create({
       model: MODEL,
+      ...(fast ? { speed: "fast" as const } : {}),
       max_tokens: 16000,
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       system: SYSTEM,
       output_config: {
-        effort: "medium",
+        effort: opts.effort,
         format: { type: "json_schema", schema: EXTRACTION_SCHEMA as unknown as Record<string, unknown> },
       },
       messages: [{
@@ -171,6 +176,18 @@ export async function extractDocument(
       }],
     });
 
+  try {
+    let response;
+    try {
+      response = await request(opts.fast);
+    } catch (err) {
+      // Fast mode has its own rate limit and is not on every account: fall back to standard speed once.
+      const retryable = err instanceof Anthropic.RateLimitError || err instanceof Anthropic.BadRequestError ||
+        err instanceof Anthropic.PermissionDeniedError;
+      if (!opts.fast || !retryable) throw err;
+      response = await request(false);
+    }
+
     if (response.stop_reason === "refusal") {
       return { ok: false, error: "The model declined to read this document." };
     }
@@ -184,7 +201,8 @@ export async function extractDocument(
     const parsed = blankToNull(JSON.parse(text)) as { documents?: Extracted[] };
     const parts = parsed.documents ?? [];
     if (parts.length === 0) return { ok: false, error: "No document could be read from this file." };
-    return { ok: true, parts, model: response.model, usage: response.usage };
+    const speed = (response.usage as { speed?: string | null } | undefined)?.speed ?? "standard";
+    return { ok: true, parts, model: response.model, usage: response.usage, ms: Date.now() - started, speed };
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) return { ok: false, error: "Claude API rate limit reached. Try again shortly." };
     if (err instanceof Anthropic.AuthenticationError) return { ok: false, error: "The Claude API key is missing or invalid." };

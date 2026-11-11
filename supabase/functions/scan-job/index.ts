@@ -19,7 +19,20 @@ import { extraChecks } from "./extra.ts";
 
 const SCAN_ROLES = new Set(["owner", "processor"]);
 const MAX_DOCS = 15;
-const CONCURRENCY = 3;
+
+type ScanSettings = { effort: "low" | "medium"; fast: boolean; concurrency: number };
+/** Settings from app_settings ("scan" row), with safe defaults; a request may override effort and fast. */
+function scanSettings(stored: unknown, body: { effort?: unknown; fast?: unknown }): ScanSettings {
+  const s = (stored && typeof stored === "object" ? stored : {}) as Record<string, unknown>;
+  const effort = body.effort ?? s.effort;
+  const fast = body.fast ?? s.fast;
+  const n = Number(s.concurrency);
+  return {
+    effort: effort === "low" ? "low" : "medium",
+    fast: fast === true,
+    concurrency: Number.isFinite(n) ? Math.min(6, Math.max(1, Math.round(n))) : 4,
+  };
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -48,6 +61,7 @@ const FIELD_LABELS: Record<string, string> = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+  const startedAt = Date.now();
 
   const url = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -66,7 +80,7 @@ Deno.serve(async (req) => {
   }
 
   // --- input ---
-  let body: { job_id?: string; force?: boolean };
+  let body: { job_id?: string; force?: boolean; effort?: unknown; fast?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -74,6 +88,8 @@ Deno.serve(async (req) => {
   }
   if (!body.job_id || !UUID_RE.test(body.job_id)) return json({ error: "job_id must be a UUID" }, 400);
   const force = body.force === true;
+  const { data: settingsRow } = await admin.from("app_settings").select("value").eq("key", "scan").maybeSingle();
+  const settings = scanSettings(settingsRow?.value, body);
 
   const { data: job, error: jobErr } = await admin
     .from("jobs")
@@ -116,11 +132,11 @@ Deno.serve(async (req) => {
             mime: d.mime_type || blob.type || "application/pdf",
             name: d.file_name,
             declaredType: d.doc_type,
-          });
+          }, settings);
         }
         const now = new Date().toISOString();
         if (outcome.ok) {
-          const extracted = { parts: outcome.parts, _model: outcome.model };
+          const extracted = { parts: outcome.parts, _model: outcome.model, _ms: outcome.ms, _speed: outcome.speed };
           // Files uploaded without a type ("other") are filed under what was found in them.
           const detected = d.doc_type === "other" ? primaryType(outcome.parts) : null;
           const update: Record<string, unknown> = { extracted, extracted_at: now, extract_error: null };
@@ -145,7 +161,7 @@ Deno.serve(async (req) => {
         }
       }
     };
-    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
+    await Promise.all(Array.from({ length: Math.min(settings.concurrency, queue.length) }, worker));
   }
 
   for (const d of docs) {
@@ -253,6 +269,7 @@ Deno.serve(async (req) => {
       docs_scanned: docs.filter((d) => d.extracted).length,
       error_count: errorCount,
       warning_count: issues.length - errorCount,
+      duration_ms: Date.now() - startedAt,
       issues,
       matches: [...checked.matches, ...sps.matches, ...extra.matches],
     })
@@ -266,5 +283,10 @@ Deno.serve(async (req) => {
     filled,
     client: patch.client_id ? clientName : null,
     model: MODEL,
+    settings,
+    timing: {
+      total_ms: Date.now() - startedAt,
+      files: docs.map((d) => ({ file_name: d.file_name, ms: (d.extracted as { _ms?: number } | null)?._ms ?? null })),
+    },
   });
 });

@@ -10,12 +10,13 @@ export const STATUS_LABEL: Record<JobStatus, string> = {
 export const ROLES: Role[] = ["owner", "processor", "dispatcher", "billing", "pending"];
 
 export const DOC_TYPES = [
-  "bill_of_lading", "airway_bill", "commercial_invoice", "packing_list", "permit", "entry",
+  "bill_of_lading", "airway_bill", "commercial_invoice", "packing_list", "sps_import_clearance", "permit", "entry",
   "assessment", "payment_proof", "release", "delivery_receipt", "billing_statement", "other",
 ] as const;
 /** Client that new shipments sit under until a consignee has been read. Keep in sync with scan-job/assemble.ts. */
 export const PLACEHOLDER_CLIENT = "Unassigned (to be confirmed)";
-export const pretty = (s: string) => s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+export const pretty = (s: string) =>
+  s === "sps_import_clearance" ? "SPS import clearance" : s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
 export type Profile = { id: string; email: string | null; full_name: string; role: Role; created_at: string };
 export type Client = {

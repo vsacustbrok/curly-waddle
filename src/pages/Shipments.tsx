@@ -55,6 +55,7 @@ async function exportXlsx(lines: Line[]) {
     ["Vessel", 20, (l) => text(l.vessel)],
     ["Voyage", 10, (l) => text(l.voyage)],
     ["ETA", 12, (l) => date(l.job.eta)],
+    ["Shipped on board", 16, (l) => date(l.s.shippedOnBoard)],
     ["Port of loading", 18, (l) => text(l.s.portOfLoading)],
     ["Port of discharge", 18, (l) => text(l.pod)],
     ["Packages", 10, (l) => number(l.s.packages)],
@@ -65,6 +66,9 @@ async function exportXlsx(lines: Line[]) {
     ["Invoice no.", 18, (l) => text(l.s.invoiceNos.join(", "))],
     ["Currency", 9, (l) => text(l.s.currency)],
     ["Invoice total", 16, (l) => (l.s.invoiceTotal != null ? number(l.s.invoiceTotal, "#,##0.00") : text(l.s.invoiceTotalsText))],
+    ["SPS no.", 20, (l) => text(l.s.spsNos.join(", "))],
+    ["SPS must ship out", 16, (l) => date(l.s.spsMustShipOut)],
+    ["SPS quantity", 16, (l) => text(l.s.spsQuantity)],
     ["Scan errors", 11, (l) => number(l.scan?.error_count ?? null)],
     ["Scan warnings", 13, (l) => number(l.scan?.warning_count ?? null)],
     ["Documents", 10, (l) => number(l.job.job_documents?.length ?? 0)],
@@ -137,7 +141,7 @@ export default function Shipments() {
               <tr>
                 <th>Job</th><th>Status</th><th>Client</th><th>Shipper</th><th>BL / AWB</th><th>Containers</th>
                 <th>Vessel / voyage</th><th>ETA</th><th>Discharge</th><th className="num">Packages</th>
-                <th className="num">Gross weight</th><th>Goods</th><th>Invoice</th><th className="num">Invoice total</th><th>Scan</th>
+                <th className="num">Gross weight</th><th>Goods</th><th>Invoice</th><th className="num">Invoice total</th><th>SPS must ship out</th><th>Scan</th>
               </tr>
             </thead>
             <tbody>
@@ -157,6 +161,7 @@ export default function Shipments() {
                   <td className="clip" title={l.s.goods ?? ""}>{l.s.goods}</td>
                   <td>{l.s.invoiceNos.join(", ")}</td>
                   <td className="num">{l.s.invoiceTotal != null ? `${l.s.currency ?? ""} ${n(l.s.invoiceTotal)}` : l.s.invoiceTotalsText}</td>
+                  <td className="nowrap">{l.s.spsMustShipOut}</td>
                   <td className="nowrap">
                     {!l.scan ? <span className="muted">Not scanned</span>
                       : l.scan.error_count ? <span className="error">{l.scan.error_count} error(s)</span>

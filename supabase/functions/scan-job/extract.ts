@@ -23,7 +23,7 @@ const DOC_SCHEMA = {
     doc_type_detected: {
       type: "string",
       enum: [
-        "bill_of_lading", "airway_bill", "commercial_invoice", "packing_list", "permit",
+        "bill_of_lading", "airway_bill", "commercial_invoice", "packing_list", "sps_import_clearance", "permit",
         "entry", "assessment", "payment_proof", "release", "delivery_receipt",
         "billing_statement", "other",
       ],
@@ -53,6 +53,13 @@ const DOC_SCHEMA = {
     currency: str,
     incoterm: str,
     invoice_total: nullable("number"),
+    issue_date: str,
+    shipped_on_board_date: str,
+    sps_must_ship_out_date: str,
+    sps_valid_until: str,
+    sps_permitted_weight: nullable("number"),
+    sps_permitted_weight_unit: str,
+    country_of_origin: str,
     line_items: {
       type: "array",
       items: {
@@ -74,7 +81,9 @@ const DOC_SCHEMA = {
     "invoice_number", "shipper", "consignee", "notify_party", "vessel", "voyage",
     "port_of_loading", "port_of_discharge", "container_numbers", "seal_numbers", "gross_weight",
     "net_weight", "weight_unit", "package_count", "package_type", "volume_cbm",
-    "goods_description", "hs_codes", "currency", "incoterm", "invoice_total", "line_items", "notes",
+    "goods_description", "hs_codes", "currency", "incoterm", "invoice_total", "issue_date",
+    "shipped_on_board_date", "sps_must_ship_out_date", "sps_valid_until", "sps_permitted_weight",
+    "sps_permitted_weight_unit", "country_of_origin", "line_items", "notes",
   ],
   additionalProperties: false,
 } as const;
@@ -101,6 +110,10 @@ Field guidance:
 - package_count: the total number of outer packages (cartons, pallets, crates), not the quantity of goods.
 - invoice_total: the final total the invoice states is payable for the goods. line_items: each goods line with its quantity, unit price and line amount.
 - goods_description: the description of goods as printed (for a BL, the "description of packages and goods" box).
+- issue_date, shipped_on_board_date, sps_must_ship_out_date, sps_valid_until: write these four as YYYY-MM-DD. Use them only for a full date printed on the document; if a date is masked, partly illegible, or its day and month could be read either way, return an empty string and say so in notes. document_date stays exactly as printed.
+- shipped_on_board_date: the "shipped on board" / "laden on board" date of a bill of lading, or the flight date of an air waybill. It is not the date of issue unless the document says the goods were shipped on that date.
+- sps_import_clearance is a Philippine Sanitary and Phytosanitary Import Clearance (SPSIC) from the Bureau of Animal Industry, Bureau of Plant Industry or BFAR. For it: document_number is the clearance number, consignee is the importer, shipper is the exporter or supplier, goods_description is the commodity, issue_date is the date issued, sps_must_ship_out_date is the "must ship out" date (the last day the goods may leave the origin), sps_valid_until is the validity or expiry date if printed separately, and sps_permitted_weight with sps_permitted_weight_unit is the quantity or volume allowed, when stated as a weight. Leave the sps_ fields empty on every other kind of document.
+- country_of_origin: as printed, on any document that states it.
 - notes: anything a broker should notice, such as illegible areas, handwritten corrections, or several documents in one file. Otherwise an empty string.`;
 
 export type ExtractOutcome =

@@ -14,6 +14,7 @@ import Anthropic from "npm:@anthropic-ai/sdk@1.6.0";
 import { crossCheck, type Issue } from "./crosscheck.ts";
 import { extractDocument, MODEL } from "./extract.ts";
 import { consigneeOf, jobPatch, PLACEHOLDER_CLIENT, primaryType, sameCompany, toDocInputs } from "./assemble.ts";
+import { spsChecks } from "./sps.ts";
 
 const SCAN_ROLES = new Set(["owner", "processor"]);
 const MAX_DOCS = 15;
@@ -225,7 +226,8 @@ Deno.serve(async (req) => {
     },
     inputs,
   );
-  issues.push(...checked.issues);
+  const sps = spsChecks(inputs);
+  issues.push(...checked.issues, ...sps.issues);
 
   const errorCount = issues.filter((i) => i.severity === "error").length;
   const { data: scan, error: scanErr } = await admin
@@ -237,7 +239,7 @@ Deno.serve(async (req) => {
       error_count: errorCount,
       warning_count: issues.length - errorCount,
       issues,
-      matches: checked.matches,
+      matches: [...checked.matches, ...sps.matches],
     })
     .select()
     .single();

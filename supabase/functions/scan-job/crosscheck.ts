@@ -31,6 +31,14 @@ export type Extracted = {
   currency?: string | null;
   incoterm?: string | null;
   invoice_total?: number | null;
+  /** ISO dates (YYYY-MM-DD), null when not printed or not readable with certainty. */
+  issue_date?: string | null;
+  shipped_on_board_date?: string | null;
+  sps_must_ship_out_date?: string | null;
+  sps_valid_until?: string | null;
+  sps_permitted_weight?: number | null;
+  sps_permitted_weight_unit?: string | null;
+  country_of_origin?: string | null;
   line_items?: Array<{
     description?: string | null;
     quantity?: number | null;
@@ -188,7 +196,8 @@ function label(d: DocInput): string {
 export function crossCheck(job: JobInput, docs: DocInput[]): CrossCheckResult {
   const issues: Issue[] = [];
   const matches: Match[] = [];
-  const withData = docs.filter((d) => d.extracted);
+  // SPS clearances are checked separately (sps.ts); here only the shipping documents are compared.
+  const withData = docs.filter((d) => d.extracted && d.doc_type !== "sps_import_clearance");
 
   const transport = withData.filter((d) => TRANSPORT_DOCS.has(d.doc_type));
   const invoices = withData.filter((d) => d.doc_type === "commercial_invoice");

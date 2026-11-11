@@ -6,6 +6,8 @@ export type Part = { type: string; fields: Fields };
 
 const TRANSPORT = ["bill_of_lading", "airway_bill"];
 const CORE = [...TRANSPORT, "commercial_invoice", "packing_list"];
+const SPS = "sps_import_clearance";
+const isoDate = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 
 export function partsOf(d: DocLike): Part[] {
   if (!d.extracted) return [];
@@ -41,6 +43,8 @@ export type Shipment = {
   invoiceNos: string[]; currency: string | null; invoiceTotal: number | null;
   /** Set when invoices are in different currencies, so they cannot be added up. */
   invoiceTotalsText: string | null;
+  /** ISO dates. With several SPS clearances, the must-ship-out date is the earliest one. */
+  shippedOnBoard: string | null; spsNos: string[]; spsMustShipOut: string | null; spsQuantity: string | null;
 };
 
 export function summarize(docs: DocLike[]): Shipment {
@@ -66,6 +70,17 @@ export function summarize(docs: DocLike[]): Shipment {
     seen.add(key);
     invoices.push({ no, currency: str(p.fields.currency)?.toUpperCase() ?? null, total: num(p.fields.invoice_total) });
   }
+  // SPS clearances: one per clearance number.
+  const spsSeen = new Set<string>();
+  const sps = parts.filter((p) => {
+    if (p.type !== SPS) return false;
+    const key = (str(p.fields.document_number) ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (key && spsSeen.has(key)) return false;
+    if (key) spsSeen.add(key);
+    return true;
+  });
+  const mustShip = sps.map((p) => isoDate(p.fields.sps_must_ship_out_date)).filter((d): d is string => !!d).sort();
+
   const withTotal = invoices.filter((i) => i.total != null);
   const currencies = [...new Set(withTotal.map((i) => i.currency ?? ""))];
   const single = currencies.length <= 1;
@@ -89,6 +104,12 @@ export function summarize(docs: DocLike[]): Shipment {
     currency: single ? (currencies[0] || null) : null,
     invoiceTotal: single && withTotal.length ? Math.round(withTotal.reduce((s, i) => s + i.total!, 0) * 100) / 100 : null,
     invoiceTotalsText: single ? null : withTotal.map((i) => `${i.currency ?? "?"} ${i.total!.toLocaleString()}`).join(" + "),
+    shippedOnBoard: isoDate(first(parts, (f) => f.shipped_on_board_date, TRANSPORT)),
+    spsNos: sps.map((p) => str(p.fields.document_number)).filter((n): n is string => !!n),
+    spsMustShipOut: mustShip[0] ?? null,
+    spsQuantity: sps.filter((p) => num(p.fields.sps_permitted_weight) != null)
+      .map((p) => `${num(p.fields.sps_permitted_weight)!.toLocaleString()} ${str(p.fields.sps_permitted_weight_unit) ?? ""}`.trim())
+      .join(" + ") || null,
   };
 }
 
@@ -100,6 +121,7 @@ export function summaryRows(s: Shipment): [string, string][] {
     ["Consignee", s.consignee],
     ["BL / AWB no.", s.blNo],
     ["Vessel / voyage", [s.vessel, s.voyage].filter(Boolean).join(" / ") || null],
+    ["Shipped on board", s.shippedOnBoard],
     ["Port of loading", s.portOfLoading],
     ["Port of discharge", s.portOfDischarge],
     ["Containers", s.containers.join(", ") || null],
@@ -108,6 +130,9 @@ export function summaryRows(s: Shipment): [string, string][] {
     ["Goods", s.goods],
     ["Invoice no.", s.invoiceNos.join(", ") || null],
     ["Invoice total", s.invoiceTotal != null ? `${s.currency ?? ""} ${n(s.invoiceTotal)}`.trim() : s.invoiceTotalsText],
+    ["SPS no.", s.spsNos.join(", ") || null],
+    ["SPS must ship out", s.spsMustShipOut],
+    ["SPS quantity", s.spsQuantity],
   ];
   return rows.filter((r): r is [string, string] => !!r[1]);
 }

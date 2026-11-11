@@ -3,6 +3,8 @@
 import { nameTokens, normContainer, type DocInput, type Extracted } from "./crosscheck.ts";
 
 export const CORE_TYPES = ["bill_of_lading", "airway_bill", "commercial_invoice", "packing_list"];
+/** Documents that take part in the checks: the shipping documents plus SPS import clearances. */
+const CHECKED_TYPES = [...CORE_TYPES, "sps_import_clearance"];
 const TRANSPORT = ["bill_of_lading", "airway_bill"];
 /** Client that new shipments sit under until a consignee has been read. Keep in sync with src/lib/types.ts. */
 export const PLACEHOLDER_CLIENT = "Unassigned (to be confirmed)";
@@ -19,11 +21,11 @@ export function partsOf(extracted: unknown): Extracted[] {
 
 /** The type to file an upload under: the most important document found in it. */
 export function primaryType(parts: Extracted[]): string | null {
-  for (const t of CORE_TYPES) if (parts.some((p) => p.doc_type_detected === t)) return t;
+  for (const t of CHECKED_TYPES) if (parts.some((p) => p.doc_type_detected === t)) return t;
   return parts[0]?.doc_type_detected ?? null;
 }
 
-/** Every BL / AWB, invoice and packing list found in the files, as cross-check inputs. */
+/** Every BL / AWB, invoice, packing list and SPS clearance found in the files, as check inputs. */
 export function toDocInputs(rows: DocRow[]): DocInput[] {
   const out: DocInput[] = [];
   for (const r of rows) {
@@ -31,7 +33,7 @@ export function toDocInputs(rows: DocRow[]): DocInput[] {
     parts.forEach((p, i) => {
       // A single-document file keeps the type its uploader chose; otherwise use what was detected.
       const type = parts.length === 1 && r.doc_type !== "other" ? r.doc_type : (p.doc_type_detected ?? r.doc_type);
-      if (!CORE_TYPES.includes(type)) return;
+      if (!CHECKED_TYPES.includes(type)) return;
       out.push({
         id: `${r.id}#${i}`,
         file_name: parts.length > 1 ? `${r.file_name} (document ${i + 1} of ${parts.length})` : r.file_name,

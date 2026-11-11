@@ -54,9 +54,10 @@ Deno.test("HS codes", () => {
 });
 
 Deno.test("dangerous goods", () => {
-  const dg = { un_number: "UN 1263", hazard_class: "3", packing_group: "II", dg_emergency_contact: "+1 703 527 3887" };
+  const dg = { un_number: "UN 1263", dg_details: "Class 3; PG II; emergency contact +1 703 527 3887" };
   assertEquals(run(mk(dg, dg)).issues, []);
-  assert(has(mk({ ...dg, packing_group: null, dg_emergency_contact: null }, dg), "dangerous_goods_details")?.message.includes("packing group, emergency contact"));
+  assert(has(mk({ ...dg, dg_details: "Class 3" }, dg), "dangerous_goods_details")?.message.includes("packing group, emergency contact"));
+  assert(has(mk({ un_number: "UN 1263", dg_details: null }, dg), "dangerous_goods_details")?.message.includes("hazard class, packing group, emergency contact"));
   assertEquals(has(mk(dg, { ...dg, un_number: "UN1993" }), "dangerous_goods_un_match")?.severity, "error");
   assert(has(mk({}, dg), "dangerous_goods_details")?.message.includes("but not on bl.pdf"));
 });
@@ -81,7 +82,7 @@ Deno.test("SPS validity, signatures and stamps", () => {
   const sps = (x: Extracted): DocInput => ({ id: "s", file_name: "sps.pdf", doc_type: "sps_import_clearance", extracted: { signed: "yes", stamped: "yes", ...x } });
   assert(has(mk({}, {}, {}, [sps({ sps_valid_until: "2026-11-10" })]), "sps_validity"));
   assertEquals(has(mk({}, {}, {}, [sps({ sps_valid_until: "2026-11-11" })]), "sps_validity"), undefined);
-  assert(has(mk({ signed: "no" }), "signature")?.message.includes("bl.pdf"));
+  assert(has(mk({ signed: "No" }), "signature")?.message.includes("bl.pdf"));
   assertEquals(has(mk({ signed: "unclear" }), "signature"), undefined);
   assert(has(mk({ stamped: "no" }), "stamp"));
   assertEquals(has(mk(), "stamp"), undefined); // the packing list has no stamp, which is normal

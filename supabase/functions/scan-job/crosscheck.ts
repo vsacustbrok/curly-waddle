@@ -7,7 +7,6 @@ export type Party = { name?: string | null; address?: string | null; contact?: s
 export type Extracted = {
   doc_type_detected?: string | null;
   document_number?: string | null;
-  document_date?: string | null;
   bl_awb_number?: string | null;
   booking_number?: string | null;
   invoice_number?: string | null;
@@ -19,7 +18,6 @@ export type Extracted = {
   port_of_loading?: string | null;
   port_of_discharge?: string | null;
   container_numbers?: string[] | null;
-  seal_numbers?: string[] | null;
   gross_weight?: number | null;
   net_weight?: number | null;
   weight_unit?: string | null;
@@ -43,9 +41,8 @@ export type Extracted = {
   eta_date?: string | null;
   carrier_name?: string | null;
   un_number?: string | null;
-  hazard_class?: string | null;
-  packing_group?: string | null;
-  dg_emergency_contact?: string | null;
+  /** Hazard class, packing group and emergency contact as printed, e.g. "Class 3; PG II; emergency contact +1 703 527 3887". */
+  dg_details?: string | null;
   /** "yes", "no" or "unclear". */
   signed?: string | null;
   stamped?: string | null;

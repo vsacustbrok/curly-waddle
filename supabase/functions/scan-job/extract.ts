@@ -17,6 +17,9 @@ const party = {
 // rather than silently dropping a key. Absent text is an empty string and only
 // numbers are nullable: the API caps a schema at 16 union-typed parameters.
 // blankToNull() turns the empty strings back into nulls after parsing.
+// The API also caps the size of the compiled schema, and this one is close to
+// that cap: adding a field usually means removing another. Prefer plain strings
+// to enums, and test a real scan after any change here.
 const DOC_SCHEMA = {
   type: "object",
   properties: {
@@ -29,7 +32,6 @@ const DOC_SCHEMA = {
       ],
     },
     document_number: str,
-    document_date: str,
     bl_awb_number: str,
     booking_number: str,
     invoice_number: str,
@@ -41,7 +43,6 @@ const DOC_SCHEMA = {
     port_of_loading: str,
     port_of_discharge: str,
     container_numbers: { type: "array", items: { type: "string" } },
-    seal_numbers: { type: "array", items: { type: "string" } },
     gross_weight: nullable("number"),
     net_weight: nullable("number"),
     weight_unit: str,
@@ -63,11 +64,9 @@ const DOC_SCHEMA = {
     eta_date: str,
     carrier_name: str,
     un_number: str,
-    hazard_class: str,
-    packing_group: str,
-    dg_emergency_contact: str,
-    signed: { type: "string", enum: ["yes", "no", "unclear"] },
-    stamped: { type: "string", enum: ["yes", "no", "unclear"] },
+    dg_details: str,
+    signed: str,
+    stamped: str,
     line_items: {
       type: "array",
       items: {
@@ -85,14 +84,14 @@ const DOC_SCHEMA = {
     notes: str,
   },
   required: [
-    "doc_type_detected", "document_number", "document_date", "bl_awb_number", "booking_number",
+    "doc_type_detected", "document_number", "bl_awb_number", "booking_number",
     "invoice_number", "shipper", "consignee", "notify_party", "vessel", "voyage",
-    "port_of_loading", "port_of_discharge", "container_numbers", "seal_numbers", "gross_weight",
+    "port_of_loading", "port_of_discharge", "container_numbers", "gross_weight",
     "net_weight", "weight_unit", "package_count", "package_type", "volume_cbm",
     "goods_description", "hs_codes", "currency", "incoterm", "invoice_total", "issue_date",
     "shipped_on_board_date", "sps_must_ship_out_date", "sps_valid_until", "sps_permitted_weight",
-    "sps_permitted_weight_unit", "country_of_origin", "eta_date", "carrier_name", "un_number", "hazard_class", "packing_group",
-    "dg_emergency_contact", "signed", "stamped", "line_items", "notes",
+    "sps_permitted_weight_unit", "country_of_origin", "eta_date", "carrier_name", "un_number", "dg_details",
+    "signed", "stamped", "line_items", "notes",
   ],
   additionalProperties: false,
 } as const;
@@ -119,15 +118,15 @@ Field guidance:
 - package_count: the total number of outer packages (cartons, pallets, crates), not the quantity of goods.
 - invoice_total: the final total the invoice states is payable for the goods. line_items: each goods line with its quantity, unit price and line amount.
 - goods_description: the description of goods as printed (for a BL, the "description of packages and goods" box).
-- issue_date, shipped_on_board_date, sps_must_ship_out_date, sps_valid_until, eta_date: write these five as YYYY-MM-DD. Use them only for a full date printed on the document; if a date is masked, partly illegible, or its day and month could be read either way, return an empty string and say so in notes. document_date stays exactly as printed.
+- issue_date, shipped_on_board_date, sps_must_ship_out_date, sps_valid_until, eta_date: write these five as YYYY-MM-DD. Use them only for a full date printed on the document; if a date is masked, partly illegible, or its day and month could be read either way, return an empty string and say so in notes.
 - shipped_on_board_date: the "shipped on board" / "laden on board" date of a bill of lading, or the flight date of an air waybill. It is not the date of issue unless the document says the goods were shipped on that date.
 - sps_import_clearance is a Philippine Sanitary and Phytosanitary Import Clearance (SPSIC) from the Bureau of Animal Industry, Bureau of Plant Industry or BFAR. For it: document_number is the clearance number, consignee is the importer, shipper is the exporter or supplier, goods_description is the commodity, issue_date is the date issued, sps_must_ship_out_date is the "must ship out" date (the last day the goods may leave the origin), sps_valid_until is the validity or expiry date if printed separately, and sps_permitted_weight with sps_permitted_weight_unit is the quantity or volume allowed, when stated as a weight. Leave the sps_ fields empty on every other kind of document.
 - arrival_notice is the carrier's or agent's notice that the shipment is arriving. eta_date is the estimated date of arrival at the port of discharge (ETA), on an arrival notice or any other document that prints one; it is not the departure (ETD) date. carrier_name is the shipping line or airline carrying the goods, as printed on a bill of lading, air waybill or arrival notice.
 - country_of_origin: as printed, on any document that states it.
 - shipper, consignee, notify_party: contact is the telephone or mobile number printed with that party, as printed; leave it empty if only an email or nothing is shown.
 - hs_codes: every HS / tariff code printed on the document.
-- un_number, hazard_class, packing_group, dg_emergency_contact: fill these only when the document declares dangerous goods (for example "UN 1263, Class 3, PG II"); leave them empty otherwise.
-- signed: "yes" if the document carries a handwritten or digital signature of its issuer, "no" if the signature space is blank or the document is marked draft / unsigned, "unclear" if you cannot tell. stamped: the same for an official stamp or seal (carrier, shipper, chamber of commerce, government agency).
+- un_number, dg_details: fill these only when the document declares dangerous goods; leave them empty otherwise. un_number is the UN number. dg_details is the rest as printed, in the form "Class 3; PG II; emergency contact +1 703 527 3887", leaving out any part the document does not show.
+- signed: one of the words yes, no, unclear. Use "yes" if the document carries a handwritten or digital signature of its issuer, "no" if the signature space is blank or the document is marked draft / unsigned, "unclear" if you cannot tell. stamped: the same for an official stamp or seal (carrier, shipper, chamber of commerce, government agency).
 - notes: anything a broker should notice, such as illegible areas, handwritten corrections, or several documents in one file. Otherwise an empty string.`;
 
 export type ExtractOutcome =

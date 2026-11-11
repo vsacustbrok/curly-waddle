@@ -104,12 +104,15 @@ export function extraChecks(docs: DocInput[], all: DocInput[], today: string): {
 
   // --- dangerous goods ---
   {
-    const dg = shipping.filter((d) => e(d).un_number || e(d).hazard_class);
+    const dg = shipping.filter((d) => e(d).un_number || e(d).dg_details);
     for (const d of dg) {
       const x = e(d);
+      const details = x.dg_details ?? "";
       const missing = [
-        !x.un_number && "UN number", !x.hazard_class && "hazard class", !x.packing_group && "packing group",
-        !x.dg_emergency_contact && "emergency contact number",
+        !x.un_number && "UN number",
+        !/class/i.test(details) && "hazard class",
+        !/\bPG\b|packing\s*group/i.test(details) && "packing group",
+        digits(details.replace(/class\s*[\d.]+/i, "")).length < 7 && "emergency contact number",
       ].filter(Boolean);
       if (missing.length) warn("dangerous_goods_details", `${d.file_name} declares dangerous goods but does not show: ${missing.join(", ")}.`);
     }
@@ -175,8 +178,9 @@ export function extraChecks(docs: DocInput[], all: DocInput[], today: string): {
 
   // --- signatures and stamps ---
   for (const d of docs.filter((x) => x.extracted && (SHIPPING.includes(x.doc_type) || x.doc_type === SPS))) {
-    if (e(d).signed === "no") warn("signature", `No signature was seen on ${d.file_name} (${d.doc_type.replace(/_/g, " ")}).`);
-    if ((TRANSPORT.includes(d.doc_type) || d.doc_type === SPS) && e(d).stamped === "no") {
+    const said = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
+    if (said(e(d).signed) === "no") warn("signature", `No signature was seen on ${d.file_name} (${d.doc_type.replace(/_/g, " ")}).`);
+    if ((TRANSPORT.includes(d.doc_type) || d.doc_type === SPS) && said(e(d).stamped) === "no") {
       warn("stamp", `No official stamp or seal was seen on ${d.file_name} (${d.doc_type.replace(/_/g, " ")}).`);
     }
   }

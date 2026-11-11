@@ -60,7 +60,7 @@ export default function Board() {
       </div>
       {error && <p className="error">{error}</p>}
       {loading ? <p className="muted">Loading…</p> : jobs.length === 0 ? (
-        <p className="muted">No jobs yet.{(role === "owner" || role === "processor") && <> <Link to="/jobs/new">Create the first job</Link>.</>}</p>
+        <p className="muted">No jobs yet.{(role === "owner" || role === "processor") && <> <Link to="/jobs/new">Create the first shipment</Link>.</>}</p>
       ) : (
         <div className="board">
           {columns.map((s) => {

@@ -8,6 +8,7 @@ import JobNew from "./pages/JobNew";
 import JobFile from "./pages/JobFile";
 import Clients from "./pages/Clients";
 import Team from "./pages/Team";
+import Shipments from "./pages/Shipments";
 
 export default function App() {
   const { session, profile, loading, reload } = useAuth();
@@ -40,7 +41,8 @@ export default function App() {
         <strong className="brand">VSA Brokerage</strong>
         <nav>
           <NavLink to="/" end>Status board</NavLink>
-          {canEditJobs(role) && <NavLink to="/jobs/new">New job</NavLink>}
+          <NavLink to="/shipments">Shipments</NavLink>
+          {canEditJobs(role) && <NavLink to="/jobs/new">New shipment</NavLink>}
           <NavLink to="/clients">Clients</NavLink>
           {role === "owner" && <NavLink to="/team">Team</NavLink>}
         </nav>
@@ -52,6 +54,7 @@ export default function App() {
       <main>
         <Routes>
           <Route path="/" element={<Board />} />
+          <Route path="/shipments" element={<Shipments />} />
           <Route path="/jobs/new" element={canEditJobs(role) ? <JobNew /> : <Navigate to="/" />} />
           <Route path="/jobs/:id" element={<JobFile />} />
           <Route path="/clients" element={<Clients />} />

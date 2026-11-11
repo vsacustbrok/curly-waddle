@@ -17,7 +17,7 @@ const party = {
 // rather than silently dropping a key. Absent text is an empty string and only
 // numbers are nullable: the API caps a schema at 16 union-typed parameters.
 // blankToNull() turns the empty strings back into nulls after parsing.
-export const EXTRACTION_SCHEMA = {
+const DOC_SCHEMA = {
   type: "object",
   properties: {
     doc_type_detected: {
@@ -79,7 +79,18 @@ export const EXTRACTION_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+// One uploaded file can hold several documents (a BL, invoice and packing list
+// scanned together), so the reply is a list with one entry per document.
+export const EXTRACTION_SCHEMA = {
+  type: "object",
+  properties: { documents: { type: "array", items: DOC_SCHEMA } },
+  required: ["documents"],
+  additionalProperties: false,
+} as const;
+
 const SYSTEM = `You read import shipping documents for a Philippine customs brokerage and transcribe their fields into JSON.
+
+A file may hold one document or several bound together (for example a bill of lading, a commercial invoice, a packing list and certificates in one scan). Return one entry in "documents" for each distinct document, in the order they appear, and set doc_type_detected from what the document itself is, whatever the file is named. Fill each entry only from that document's own pages: never carry a value from the bill of lading into the invoice entry or the other way round. Use "other" for certificates, loading records and anything else that is not on the list.
 
 Transcribe exactly what the document shows. Do not infer, normalise or correct values, and do not copy a value from one field into another. When a text field is not on the document, return an empty string; for a missing number return null; for a missing list return an empty array. The brokerage cross-checks these values between documents, so a guessed value is worse than a null.
 
@@ -93,7 +104,7 @@ Field guidance:
 - notes: anything a broker should notice, such as illegible areas, handwritten corrections, or several documents in one file. Otherwise an empty string.`;
 
 export type ExtractOutcome =
-  | { ok: true; data: Extracted & { notes?: string | null }; model: string; usage: unknown }
+  | { ok: true; parts: Extracted[]; model: string; usage: unknown }
   | { ok: false; error: string };
 
 export async function extractDocument(
@@ -126,7 +137,9 @@ export async function extractDocument(
           source,
           {
             type: "text",
-            text: `File name: ${file.name}\nThe uploader filed this as: ${file.declaredType}\nExtract the fields.`,
+            text: `File name: ${file.name}\n${
+              file.declaredType === "other" ? "" : `The uploader filed this as: ${file.declaredType}\n`
+            }Extract the fields of every document in this file.`,
           },
         ],
       }],
@@ -142,8 +155,10 @@ export async function extractDocument(
       .filter((b) => b.type === "text")
       .map((b) => (b as { text: string }).text)
       .join("");
-    const data = blankToNull(JSON.parse(text)) as Extracted;
-    return { ok: true, data, model: response.model, usage: response.usage };
+    const parsed = blankToNull(JSON.parse(text)) as { documents?: Extracted[] };
+    const parts = parsed.documents ?? [];
+    if (parts.length === 0) return { ok: false, error: "No document could be read from this file." };
+    return { ok: true, parts, model: response.model, usage: response.usage };
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) return { ok: false, error: "Claude API rate limit reached. Try again shortly." };
     if (err instanceof Anthropic.AuthenticationError) return { ok: false, error: "The Claude API key is missing or invalid." };

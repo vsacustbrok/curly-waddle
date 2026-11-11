@@ -13,7 +13,8 @@ export const DOC_TYPES = [
   "bill_of_lading", "airway_bill", "commercial_invoice", "packing_list", "permit", "entry",
   "assessment", "payment_proof", "release", "delivery_receipt", "billing_statement", "other",
 ] as const;
-export const SCANNED_TYPES = new Set(["bill_of_lading", "airway_bill", "commercial_invoice", "packing_list"]);
+/** Client that new shipments sit under until a consignee has been read. Keep in sync with scan-job/assemble.ts. */
+export const PLACEHOLDER_CLIENT = "Unassigned (to be confirmed)";
 export const pretty = (s: string) => s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
 export type Profile = { id: string; email: string | null; full_name: string; role: Role; created_at: string };

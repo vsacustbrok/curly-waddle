@@ -36,6 +36,14 @@ buttons a role cannot use.
 
 It needs one secret on the Supabase project: `ANTHROPIC_API_KEY` (Dashboard → Edge Functions → Secrets).
 
+## No typing
+
+- **New shipment → From documents** creates a shipment from uploaded files alone: the scan fills in the job
+  details and sets the client from the consignee (reusing an existing client with the same name).
+- Files uploaded without a type are filed under what was found in them. One PDF may hold several documents;
+  each is read and cross-checked separately.
+- **Shipments** lists every shipment with the details read from its documents and exports the list to Excel.
+
 ## Develop
 
 ```bash
@@ -46,5 +54,5 @@ npm run dev
 Cross-check unit tests:
 
 ```bash
-deno test supabase/functions/scan-job/crosscheck_test.ts
+deno test supabase/functions/scan-job/
 ```

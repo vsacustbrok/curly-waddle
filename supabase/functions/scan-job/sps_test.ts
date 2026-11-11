@@ -41,15 +41,20 @@ Deno.test("must ship out date", () => {
   assertEquals(find(spsChecks(docs({ shipped_on_board_date: "30/10/2026" })), "sps_must_ship_out")?.severity, "warning");
 });
 
-Deno.test("weight must not exceed the SPS quantity and should match it", () => {
-  assertEquals(find(spsChecks(docs({ net_weight: 27000.5 })), "sps_weight"), undefined); // rounding
-  const over = find(spsChecks(docs({ net_weight: 27500 })), "sps_weight");
-  assert(over?.severity === "error" && over.message.includes("exceeds") && over.message.includes("500 kg"));
-  const under = find(spsChecks(docs({ net_weight: 25000 })), "sps_weight");
+Deno.test("weight may differ from the SPS quantity by at most 3%", () => {
+  // 3% of 27,000 kg is 810 kg
+  assertEquals(find(spsChecks(docs({ net_weight: 27500 })), "sps_weight"), undefined); // 1.85% over
+  assertEquals(find(spsChecks(docs({ net_weight: 27810 })), "sps_weight"), undefined); // exactly 3% over
+  assertEquals(find(spsChecks(docs({ net_weight: 26190 })), "sps_weight"), undefined); // exactly 3% under
+  const over = find(spsChecks(docs({ net_weight: 27811 })), "sps_weight");
+  assert(over?.severity === "error" && over.message.includes("cancelled or re-applied") && over.message.includes("811 kg"));
+  const under = find(spsChecks(docs({ net_weight: 26189 })), "sps_weight");
   assert(under?.severity === "warning" && under.message.includes("below"));
+  const ok = spsChecks(docs({ net_weight: 27500 })).matches.find((m) => m.check === "sps_weight");
+  assert(String(ok?.value).includes("1.85% over"));
   // units are converted
   assertEquals(find(spsChecks(docs({}, { sps_permitted_weight: 27, sps_permitted_weight_unit: "MT" })), "sps_weight"), undefined);
-  // no net weight anywhere: gross above the limit is a warning to confirm, not an error
+  // no net weight anywhere: gross (28,010 kg, 3.74% over) is a warning to confirm, not an error
   assertEquals(find(spsChecks(docs({ net_weight: null })), "sps_weight")?.severity, "warning");
   // net weight taken from the packing list when the BL has none
   const pl: DocInput = { id: "p", file_name: "pl.pdf", doc_type: "packing_list", extracted: { net_weight: 27000, weight_unit: "KG" } };

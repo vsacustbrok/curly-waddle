@@ -5,9 +5,8 @@ import { descTokens, nameSimilarity, toKg, type DocInput, type Extracted, type I
 export const SPS_TYPE = "sps_import_clearance";
 const TRANSPORT = ["bill_of_lading", "airway_bill"];
 const NAME_MATCH = 0.6;
-/** Weights within 0.5% count as matching; anything above the SPS quantity beyond rounding is an excess. */
-const MATCH_TOLERANCE = 0.005;
-const EXCESS_TOLERANCE = 0.0005;
+/** The shipment weight may differ from the SPS quantity by at most 3%. Beyond that the SPS must be cancelled or re-applied. */
+const WEIGHT_TOLERANCE = 0.03;
 
 const isoDate = (v: string | null | undefined) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) ? v : null);
 const label = (d: DocInput) => `${d.doc_type}: ${d.file_name}`;
@@ -165,29 +164,34 @@ export function spsChecks(docs: DocInput[]): { issues: Issue[]; matches: Match[]
     { source: `${actual.source} (${actual.basis} weight)`, value: kg(actual.kg) },
   ];
   const diff = (actual.kg - limit) / limit;
-  if (diff > EXCESS_TOLERANCE) {
+  const pct = `${(Math.abs(diff) * 100).toFixed(2)}%`;
+  if (diff > WEIGHT_TOLERANCE) {
     issues.push(actual.basis === "net"
       ? {
         severity: "error",
         check: "sps_weight",
-        message: `Net weight ${kg(actual.kg)} exceeds the SPS permitted quantity ${kg(limit)} by ${kg(actual.kg - limit)}.`,
+        message: `Net weight ${kg(actual.kg)} exceeds the SPS permitted quantity ${kg(limit)} by ${kg(actual.kg - limit)} (${pct}), beyond the 3% tolerance. The SPS must be cancelled or re-applied.`,
         values,
       }
       : {
         severity: "warning",
         check: "sps_weight",
-        message: `No net weight was found. Gross weight ${kg(actual.kg)} is above the SPS permitted quantity ${kg(limit)}; confirm the net weight does not exceed it.`,
+        message: `No net weight was found. Gross weight ${kg(actual.kg)} is ${pct} above the SPS permitted quantity ${kg(limit)}; confirm the net weight is within the 3% tolerance.`,
         values,
       });
-  } else if (diff < -MATCH_TOLERANCE) {
+  } else if (diff < -WEIGHT_TOLERANCE) {
     issues.push({
       severity: "warning",
       check: "sps_weight",
-      message: `The ${actual.basis} weight ${kg(actual.kg)} is ${kg(limit - actual.kg)} below the SPS permitted quantity ${kg(limit)}. It does not exceed the SPS, but the two do not match.`,
+      message: `The ${actual.basis} weight ${kg(actual.kg)} is ${kg(limit - actual.kg)} (${pct}) below the SPS permitted quantity ${kg(limit)}, outside the 3% tolerance. Check whether the SPS needs to be cancelled or re-applied.`,
       values,
     });
   } else {
-    matches.push({ check: "sps_weight", value: `${kg(actual.kg)} ${actual.basis} against ${kg(limit)} permitted`, sources: [spsLabel, actual.source] });
+    matches.push({
+      check: "sps_weight",
+      value: `${kg(actual.kg)} ${actual.basis} against ${kg(limit)} permitted (${diff === 0 ? "exact" : `${pct} ${diff > 0 ? "over" : "under"}`}, within the 3% tolerance)`,
+      sources: [spsLabel, actual.source],
+    });
   }
   return { issues, matches };
 }

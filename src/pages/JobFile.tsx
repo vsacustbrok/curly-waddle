@@ -252,8 +252,7 @@ export default function JobFile() {
         </div>
         <p className="muted small">
           Checks that the Bill of Lading / Airway Bill, Commercial Invoice and Packing List agree on shipper, consignee,
-          BL number, containers, weights, packages, invoice totals and goods description. An SPS import clearance is
-          checked against the bill of lading: importer, goods, must-ship-out date and permitted weight.
+          BL number, containers, weights, packages, invoice totals and goods description.
         </p>
         {!latest ? <p className="muted">The documents have not been checked yet.</p> : (
           <>

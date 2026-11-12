@@ -9,6 +9,7 @@ import JobFile from "./pages/JobFile";
 import Clients from "./pages/Clients";
 import Team from "./pages/Team";
 import Shipments from "./pages/Shipments";
+import Security from "./pages/Security";
 
 export default function App() {
   const { session, profile, loading, reload } = useAuth();
@@ -48,6 +49,7 @@ export default function App() {
           {canEditJobs(role) && <NavLink to="/jobs/new">New shipment</NavLink>}
           <NavLink to="/clients">Clients</NavLink>
           {role === "owner" && <NavLink to="/team">Team</NavLink>}
+          {role === "owner" && <NavLink to="/security">Security</NavLink>}
         </nav>
         <span className="who">
           {profile.full_name || profile.email} <span className="badge">{pretty(role)}</span>
@@ -62,6 +64,7 @@ export default function App() {
           <Route path="/jobs/:id" element={<JobFile />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/team" element={role === "owner" ? <Team /> : <Navigate to="/" />} />
+          <Route path="/security" element={role === "owner" ? <Security /> : <Navigate to="/" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

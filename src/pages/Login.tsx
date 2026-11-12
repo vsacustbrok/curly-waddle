@@ -21,8 +21,10 @@ export default function Login() {
         email, password,
         options: { data: { full_name: name }, emailRedirectTo: window.location.origin },
       });
-      if (error) setMsg({ kind: "error", text: error.message });
-      else if (!data.session) setMsg({ kind: "ok", text: "Check your email for a confirmation link, then sign in." });
+      if (error) {
+        const uninvited = /not been invited|database error saving new user/i.test(error.message);
+        setMsg({ kind: "error", text: uninvited ? "This email has not been invited yet. Ask the owner to invite you, then sign up again." : error.message });
+      } else if (!data.session) setMsg({ kind: "ok", text: "Check your email for a confirmation link, then sign in." });
     }
     setBusy(false);
   }
@@ -47,7 +49,7 @@ export default function Login() {
         <button type="button" className="ghost" onClick={() => { setMode(mode === "in" ? "up" : "in"); setMsg(null); }}>
           {mode === "in" ? "Need an account? Sign up" : "Have an account? Sign in"}
         </button>
-        {mode === "up" && <p className="muted small">New accounts wait for the owner to assign a role.</p>}
+        {mode === "up" && <p className="muted small">Only emails the owner has invited can sign up.</p>}
       </form>
     </div>
   );

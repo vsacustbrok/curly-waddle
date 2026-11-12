@@ -43,7 +43,7 @@ async function exportXlsx(lines: Line[]) {
   const number = (v: number | null, format?: string) => (v == null ? null : { value: v, type: Number, ...(format ? { format } : {}) });
   const date = (iso: string | null) => (iso ? { value: new Date(iso.slice(0, 10) + "T00:00:00Z"), type: Date, format: "yyyy-mm-dd" } : null);
   const columns: [string, number, (l: Line) => unknown][] = [
-    ["Job no.", 12, (l) => text(l.job.job_no)],
+    ["PN", 12, (l) => text(l.job.job_no)],
     ["Status", 12, (l) => text(STATUS_LABEL[l.job.status])],
     ["Service", 12, (l) => text(pretty(l.job.service_type))],
     ["Client", 30, (l) => text(l.job.clients?.name)],
@@ -139,7 +139,7 @@ export default function Shipments() {
           <table className="wide-table">
             <thead>
               <tr>
-                <th>Job</th><th>Status</th><th>Client</th><th>Shipper</th><th>BL / AWB</th><th>Containers</th>
+                <th>PN</th><th>Status</th><th>Client</th><th>Shipper</th><th>BL / AWB</th><th>Containers</th>
                 <th>Vessel / voyage</th><th>ETA</th><th>Discharge</th><th className="num">Packages</th>
                 <th className="num">Gross weight</th><th>Goods</th><th>Invoice</th><th className="num">Invoice total</th><th>SPS must ship out</th><th>Scan</th>
               </tr>

@@ -117,7 +117,7 @@ export default function JobNew() {
         <form onSubmit={submit}>
           {clients.length === 0 && <p className="muted">No clients yet. <Link to="/clients">Add a client</Link> first.</p>}
           <JobFields form={form} setForm={setForm} clients={clients} staff={staff} />
-          <div className="row"><button disabled={busy || !form.client_id}>Create job</button></div>
+          <div className="row"><button disabled={busy || !form.client_id}>Create shipment</button></div>
         </form>
       </details>
     </>

@@ -39,7 +39,7 @@ export default function Clients() {
   async function remove(c: Client) {
     if (!confirm(`Delete client ${c.name}?`)) return;
     const { error } = await supabase.from("clients").delete().eq("id", c.id);
-    if (error) setError(error.message.includes("foreign key") ? `${c.name} has jobs and cannot be deleted.` : error.message);
+    if (error) setError(error.message.includes("foreign key") ? `${c.name} has shipments and cannot be deleted.` : error.message);
     load();
   }
 

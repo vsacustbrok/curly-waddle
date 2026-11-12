@@ -1,22 +1,24 @@
 import type { Client, Job, Profile, ServiceType } from "../lib/types";
 
 export type JobForm = {
-  client_id: string; service_type: ServiceType; bl_awb_no: string; containers: string; vessel: string;
+  job_no: string; client_id: string; service_type: ServiceType; bl_awb_no: string; containers: string; vessel: string;
   voyage: string; eta: string; port_of_discharge: string; booking_no: string; carrier: string;
   entry_no: string; processor_id: string; notes: string;
 };
 export const emptyJob: JobForm = {
-  client_id: "", service_type: "brokerage", bl_awb_no: "", containers: "", vessel: "", voyage: "", eta: "",
+  job_no: "", client_id: "", service_type: "brokerage", bl_awb_no: "", containers: "", vessel: "", voyage: "", eta: "",
   port_of_discharge: "", booking_no: "", carrier: "", entry_no: "", processor_id: "", notes: "",
 };
 export const fromJob = (j: Job): JobForm => ({
-  client_id: j.client_id, service_type: j.service_type, bl_awb_no: j.bl_awb_no ?? "",
+  job_no: j.job_no, client_id: j.client_id, service_type: j.service_type, bl_awb_no: j.bl_awb_no ?? "",
   containers: (j.containers ?? []).join(", "), vessel: j.vessel ?? "", voyage: j.voyage ?? "", eta: j.eta ?? "",
   port_of_discharge: j.port_of_discharge ?? "", booking_no: j.booking_no ?? "", carrier: j.carrier ?? "",
   entry_no: j.entry_no ?? "", processor_id: j.processor_id ?? "", notes: j.notes ?? "",
 });
 const n = (s: string) => (s.trim() === "" ? null : s.trim());
 export const toRow = (f: JobForm) => ({
+  // A blank PN on a new shipment lets the database give it the next number.
+  ...(f.job_no.trim() ? { job_no: f.job_no.trim().toUpperCase() } : {}),
   client_id: f.client_id, service_type: f.service_type, bl_awb_no: n(f.bl_awb_no),
   containers: f.containers.split(/[\s,;]+/).map((c) => c.trim().toUpperCase()).filter(Boolean),
   vessel: n(f.vessel), voyage: n(f.voyage), eta: n(f.eta), port_of_discharge: n(f.port_of_discharge),
@@ -30,6 +32,9 @@ export default function JobFields({ form, setForm, clients, staff }: {
   const set = (k: keyof JobForm) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
   return (
     <div className="grid">
+      <label>PN (project number)
+        <input value={form.job_no} onChange={set("job_no")} maxLength={30} placeholder="Leave blank to number automatically" />
+      </label>
       <label>Client
         <select value={form.client_id} onChange={set("client_id")} required>
           <option value="">Select…</option>

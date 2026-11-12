@@ -26,7 +26,7 @@ const CHECK_LABEL: Record<string, string> = {
   package_count_match: "Number of packages", invoice_total: "Invoice total", invoice_line_math: "Invoice line arithmetic",
   invoice_currency: "Invoice currency", goods_description_match: "Goods description", vessel_match: "Vessel", voyage_match: "Voyage",
   documents_present: "Missing document", extraction: "File could not be read", eta: "Arrival date (ETA)", client: "Client",
-  job_details: "Job details", sps_vs_bl: "SPS and bill of lading", sps_consignee_match: "SPS importer", sps_shipper_match: "SPS exporter",
+  job_details: "Project details", sps_vs_bl: "SPS and bill of lading", sps_consignee_match: "SPS importer", sps_shipper_match: "SPS exporter",
   sps_goods_match: "SPS commodity", sps_must_ship_out: "SPS must-ship-out date", sps_weight: "SPS weight (3% tolerance)",
   sps_validity: "SPS validity", notify_party_match: "Notify party", shipper_address: "Shipper address", consignee_address: "Consignee address",
   notify_party_address: "Notify party address", shipper_contact: "Shipper contact number", consignee_contact: "Consignee contact number",
@@ -37,7 +37,7 @@ const CHECK_LABEL: Record<string, string> = {
 };
 export const checkLabel = (check: string) => CHECK_LABEL[check] ?? pretty(check);
 /** "bill_of_lading: file.pdf" -> "Bill of lading: file.pdf" */
-export const prettySource = (source: string) => source.replace(/^[a-z_]+(?=:)/, (t) => (t === "job" ? "Job record" : pretty(t)));
+export const prettySource = (source: string) => source.replace(/^[a-z_]+(?=:)/, (t) => (t === "job" ? "Project record" : pretty(t)));
 
 export type Profile = { id: string; email: string | null; full_name: string; role: Role; created_at: string };
 export type Client = {

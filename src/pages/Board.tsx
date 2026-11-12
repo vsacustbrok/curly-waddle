@@ -51,16 +51,16 @@ export default function Board() {
       <div className="row spread">
         <h1>Status board</h1>
         <div className="row">
-          <input placeholder="Search job, client, BL, container…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input placeholder="Search PN, client, BL, container…" value={q} onChange={(e) => setQ(e.target.value)} />
           {role === "processor" && (
-            <label className="check"><input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> My jobs</label>
+            <label className="check"><input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> My shipments</label>
           )}
           <label className="check"><input type="checkbox" checked={showBilled} onChange={(e) => setShowBilled(e.target.checked)} /> Show billed</label>
         </div>
       </div>
       {error && <p className="error">{error}</p>}
       {loading ? <p className="muted">Loading…</p> : jobs.length === 0 ? (
-        <p className="muted">No jobs yet.{(role === "owner" || role === "processor") && <> <Link to="/jobs/new">Create the first shipment</Link>.</>}</p>
+        <p className="muted">No shipments yet.{(role === "owner" || role === "processor") && <> <Link to="/jobs/new">Create the first shipment</Link>.</>}</p>
       ) : (
         <div className="board">
           {columns.map((s) => {

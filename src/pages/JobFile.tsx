@@ -69,7 +69,7 @@ export default function JobFile() {
     supabase.from("profiles").select("*").in("role", ["owner", "processor"]).then(({ data }) => setStaff((data as Profile[]) ?? []));
   }, [editable]);
 
-  if (notFound) return <p className="muted">Job not found.</p>;
+  if (notFound) return <p className="muted">Shipment not found.</p>;
   if (!job) return <p className="muted">Loading…</p>;
 
   async function run(label: string, fn: () => Promise<string | void>) {
@@ -96,6 +96,7 @@ export default function JobFile() {
     e.preventDefault();
     run("save", async () => {
       const { error } = await supabase.from("jobs").update(toRow(form!)).eq("id", job.id);
+      if (error?.message.includes("jobs_job_no_key")) return `PN ${form!.job_no.trim()} is already used by another shipment. Choose a different one.`;
       if (error) return error.message;
       setForm(null);
     });
@@ -140,12 +141,12 @@ export default function JobFile() {
   const scan = (force: boolean) => run("scan", () => scanNow(force));
 
   const deleteJob = () => {
-    if (!confirm(`Delete job ${job.job_no}? This cannot be undone.`)) return;
+    if (!confirm(`Delete shipment ${job.job_no}? This cannot be undone.`)) return;
     run("delete", async () => {
       // Deleting the job removes its document records, so remove the stored files first.
       if (docs.length) {
         const rm = await supabase.storage.from("job-docs").remove(docs.map((d) => d.file_path));
-        if (rm.error) return `Could not delete this job's files: ${rm.error.message}`;
+        if (rm.error) return `Could not delete this shipment's files: ${rm.error.message}`;
       }
       const { error } = await supabase.from("jobs").delete().eq("id", job.id);
       if (error) return error.message;
@@ -181,7 +182,7 @@ export default function JobFile() {
 
       <section className="card">
         <div className="row spread">
-          <h2>Job details</h2>
+          <h2>Project details</h2>
           {editable && !form && <button className="ghost" onClick={() => setForm(fromJob(job))}>Edit</button>}
         </div>
         {form ? (
@@ -194,6 +195,7 @@ export default function JobFile() {
           </form>
         ) : (
           <dl className="details">
+            <dt>PN (project number)</dt><dd>{job.job_no}</dd>
             <dt>Client</dt><dd>{job.clients?.name}</dd>
             <dt>Service</dt><dd>{pretty(job.service_type)}</dd>
             <dt>BL / AWB no.</dt><dd>{show(job.bl_awb_no)}</dd>
@@ -319,7 +321,7 @@ export default function JobFile() {
         </ul>
       </section>
 
-      {role === "owner" && <button className="danger" disabled={!!busy} onClick={deleteJob}>Delete job</button>}
+      {role === "owner" && <button className="danger" disabled={!!busy} onClick={deleteJob}>Delete shipment</button>}
     </>
   );
 }

@@ -158,3 +158,29 @@ ul.changes { margin: 0 0 14px; padding-left: 18px; } ul.changes li { padding: 2p
 ul.note-log { list-style: none; margin: 0; padding: 0; }
 .note-day { font-weight: 600; color: var(--accent); margin: 10px 0 4px; }
 .note-body { padding: 6px 10px; border-left: 3px solid var(--line); margin-bottom: 4px; }
+.pw { position: relative; display: flex; }
+.pw input { flex: 1; padding-right: 44px; }
+.eye { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text); min-height: 0; padding: 4px 8px; font-size: 1.1rem; }
+.dictation { position: fixed; right: 16px; bottom: 16px; z-index: 15; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: calc(100vw - 32px); }
+.dictation select { min-height: 0; padding: 6px; font-size: .85rem; }
+.mic { border-radius: 999px; padding: 10px 18px; box-shadow: 0 2px 8px rgb(0 0 0 / .2); }
+.mic.on { background: var(--error); border-color: var(--error); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 8px rgb(179 38 30 / .2); } }
+@media (prefers-reduced-motion: reduce) { .mic.on { animation: none; } }
+.dictation-hint { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: .82rem; box-shadow: 0 1px 3px rgb(0 0 0 / .1); }
+main { padding-bottom: 80px; }
+.cal-title { min-width: 150px; text-align: center; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; padding: 10px; }
+.cal-head { font-size: .8rem; font-weight: 600; color: var(--muted); text-align: center; padding: 4px 0; }
+.cal-cell { min-height: 92px; border: 1px solid var(--line); border-radius: 6px; padding: 4px; background: #fff; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cal-cell.empty { background: transparent; border-color: transparent; }
+.cal-cell.past { background: #f7f8fa; }
+.cal-cell.today { border: 2px solid var(--accent); }
+.cal-day { font-size: .8rem; font-weight: 600; color: var(--muted); }
+.cal-item { display: block; font-size: .78rem; padding: 2px 5px; border-radius: 4px; text-decoration: none; color: var(--text); background: #e6eef7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-item.status-delivered, .cal-item.status-billed { background: #e8f5ec; }
+.cal-item.status-released { background: #fff3d6; }
+@media (max-width: 640px) { .cal { gap: 2px; padding: 4px; } .cal-cell { min-height: 64px; } .cal-item span { display: none; } }
+.activity { background: #f4f7fb; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; }
+.report-text { width: 100%; margin-bottom: 8px; }
+h3.sub { font-size: 1rem; margin: 18px 0 6px; color: var(--accent); }

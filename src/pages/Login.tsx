@@ -8,6 +8,7 @@ export default function Login() {
   const [name, setName] = useState("");
   const [msg, setMsg] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -41,8 +42,14 @@ export default function Login() {
         )}
         <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" /></label>
         <label>Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8}
-            autoComplete={mode === "in" ? "current-password" : "new-password"} />
+          <span className="pw">
+            <input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8}
+              autoComplete={mode === "in" ? "current-password" : "new-password"} />
+            <button type="button" className="eye" onClick={() => setShowPw(!showPw)}
+              aria-label={showPw ? "Hide password" : "Show password"} title={showPw ? "Hide password" : "Show password"}>
+              {showPw ? "🙈" : "👁"}
+            </button>
+          </span>
         </label>
         {msg && <p className={msg.kind}>{msg.text}</p>}
         <button disabled={busy}>{busy ? "Please wait…" : mode === "in" ? "Sign in" : "Sign up"}</button>

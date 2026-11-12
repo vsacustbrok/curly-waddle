@@ -99,14 +99,15 @@ dl.details { gap: 8px 20px; }
 .finding.error .tag { background: var(--error); }
 .badge.status-pre_arrival, .col-pre_arrival h2 { color: #5b6470; }
 .badge.status-lodged, .col-lodged h2 { color: #14508c; }
-.badge.status-assessed, .col-assessed h2 { color: #6a3fa0; }
+.badge.status-assessed, .col-assessed h2 { color: #1e7a34; }
 .badge.status-paid, .col-paid h2 { color: #0b6b6b; }
 .badge.status-released, .col-released h2 { color: #8a5a00; }
-.badge.status-delivered, .col-delivered h2 { color: #1e6b3a; }
+.badge.status-delivered, .col-delivered h2 { color: #4a3b00; }
+.col-delivered h2 { background: #ffe14d; border-radius: 6px; padding: 2px 8px; display: inline-block; }
 .badge.status-billed, .col-billed h2 { color: #1c2430; }
-.badge.status-pre_arrival { background: #eceff2; } .badge.status-assessed { background: #f0e9f8; }
+.badge.status-pre_arrival { background: #eceff2; } .badge.status-assessed { background: #e6f4ea; }
 .badge.status-paid { background: #e0f2f2; } .badge.status-released { background: #fff3d6; }
-.badge.status-delivered { background: #e8f5ec; } .badge.status-billed { background: #e3e6ea; }
+.badge.status-delivered { background: #ffe14d; } .badge.status-billed { background: #e3e6ea; }
 .jobcard { padding: 10px 12px; }
 @media (max-width: 640px) {
   main { padding: 10px; }
@@ -178,7 +179,8 @@ main { padding-bottom: 80px; }
 .cal-cell.today { border: 2px solid var(--accent); }
 .cal-day { font-size: .8rem; font-weight: 600; color: var(--muted); }
 .cal-item { display: block; font-size: .78rem; padding: 2px 5px; border-radius: 4px; text-decoration: none; color: var(--text); background: #e6eef7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cal-item.status-delivered, .cal-item.status-billed { background: #e8f5ec; }
+.cal-item.status-billed { background: #e8f5ec; }
+.cal-item.status-delivered { background: #fff3a8; }
 .cal-item.status-released { background: #fff3d6; }
 @media (max-width: 640px) { .cal { gap: 2px; padding: 4px; } .cal-cell { min-height: 64px; } .cal-item span { display: none; } }
 .activity { background: #f4f7fb; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; }
@@ -198,3 +200,10 @@ h3.sub { font-size: 1rem; margin: 18px 0 6px; color: var(--accent); }
 .segmented { display: inline-flex; gap: 4px; }
 table.breakdown { margin-bottom: 12px; }
 table.breakdown tr.total td { border-top: 2px solid var(--line); font-weight: 600; }
+
+/* Key words in notes and remarks */
+.kw { font-weight: 700; }
+.kw-assessed { color: #1e7a34; }
+.kw-gatepass { color: #d35400; }
+.kw-tabs { color: #1565c0; }
+.kw-delivered { color: #4a3b00; background: #ffe14d; border-radius: 3px; padding: 0 3px; }

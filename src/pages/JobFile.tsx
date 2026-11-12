@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { markWords } from "../lib/keywords";
 import { useAuth } from "../lib/auth";
 import {
   BL_RELEASE_LABEL, DOC_TYPES, PLACEHOLDER_CLIENT, STATUSES, dateTime, dayLabel, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, pretty, prettySource,
@@ -260,8 +261,8 @@ export default function JobFile() {
               ["Empty return", [job.empty_return, dayLabel(job.empty_return_date)].filter(Boolean).join(", ") || null],
             ]} />
             {(job.lodge_remarks || job.lodge_remarks_2 || job.lodge_note || job.notes) && <Group title="6. Remarks and notes" rows={[
-              ["Remarks", job.lodge_remarks], ["Remarks 2", job.lodge_remarks_2], ["Note", job.lodge_note],
-              ["General notes", job.notes ? <span className="pre">{job.notes}</span> : null],
+              ["Remarks", markWords(job.lodge_remarks)], ["Remarks 2", markWords(job.lodge_remarks_2)], ["Note", markWords(job.lodge_note)],
+              ["General notes", job.notes ? <span className="pre">{markWords(job.notes)}</span> : null],
             ]} />}
           </div>
         )}
@@ -284,7 +285,7 @@ export default function JobFile() {
               <li key={n.id}>
                 {(i === 0 || notes[i - 1].note_date !== n.note_date) && <div className="note-day">{dayLabel(n.note_date)}</div>}
                 <div className="note-body">
-                  <span className="pre">{n.body}</span>
+                  <span className="pre">{markWords(n.body)}</span>
                   <span className="muted small"> · {n.author_name ?? "unknown"}, {new Date(n.created_at).toLocaleTimeString(undefined, { timeStyle: "short" })}</span>
                   {(n.author_id === profile!.id || role === "owner") && (
                     <button type="button" className="link danger-text small" onClick={() => removeNote(n)}>Delete</button>

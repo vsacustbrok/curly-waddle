@@ -146,7 +146,9 @@ async function runPlan(plan: Plan, onProgress: (done: number) => void): Promise<
   for (const item of plan.items) {
     const { row, existing } = item;
     const hasEntry = !!row.fields.entry_no;
-    const target: JobStatus = hasEntry ? row.stage ?? "lodged" : "pre_arrival";
+    // Released with a truck plate on the sheet means the container went out: count it as delivered.
+    const stage = row.stage === "released" && row.fields.trucker_plate_no ? "delivered" : row.stage;
+    const target: JobStatus = hasEntry ? stage ?? "lodged" : "pre_arrival";
     // The day the row sits under on the sheet is the day it was lodged.
     const filed = row.lodgeDate || null;
     if (existing) {

@@ -42,6 +42,15 @@ export const prettySource = (source: string) => source.replace(/^[a-z_]+(?=:)/, 
 /** The selectivity colour customs gives an entry once it is lodged. */
 export const ENTRY_COLORS = ["red", "orange", "yellow"] as const;
 export type EntryColor = (typeof ENTRY_COLORS)[number];
+export const ENTRY_STATUSES = ["final", "assessed"] as const;
+export type EntryStatus = (typeof ENTRY_STATUSES)[number];
+/** How the cargo is released by the shipping line. */
+export const BL_RELEASE_TYPES = ["cro", "telex", "original"] as const;
+export type BlReleaseType = (typeof BL_RELEASE_TYPES)[number];
+export const BL_RELEASE_LABEL: Record<BlReleaseType, string> = { cro: "CRO", telex: "Telex released", original: "Original BL" };
+/** A stored timestamp in the viewer's local time, e.g. "Nov 12, 2026, 3:05 PM". */
+export const dateTime = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : null;
 
 export type Profile = { id: string; email: string | null; full_name: string; role: Role; created_at: string };
 export type Client = {
@@ -53,6 +62,10 @@ export type Job = {
   bl_awb_no: string | null; containers: string[]; vessel: string | null; voyage: string | null;
   eta: string | null; port_of_discharge: string | null; booking_no: string | null; carrier: string | null;
   entry_no: string | null; ticket_no: string | null; entry_color: EntryColor | null;
+  client_ref_no: string | null; entry_status: EntryStatus | null; final_sad_sent: boolean; ssdt_sent: boolean;
+  container_at_yard_at: string | null; trucker_name: string | null; trucker_plate_no: string | null;
+  delivery_address: string | null; released_at: string | null; port_of_destination: string | null;
+  bl_release_type: BlReleaseType | null;
   processor_id: string | null; notes: string | null;
   created_at: string; updated_at: string;
   clients?: { name: string } | null;

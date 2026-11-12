@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import {
-  DOC_TYPES, PLACEHOLDER_CLIENT, STATUSES, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, pretty, prettySource,
+  BL_RELEASE_LABEL, DOC_TYPES, PLACEHOLDER_CLIENT, STATUSES, dateTime, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, pretty, prettySource,
   type Client, type Job, type JobDocument, type JobStatus, type Profile, type ScanResult, type StatusHistory,
 } from "../lib/types";
 import { partsOf, summarize, summaryRows } from "../lib/shipment";
@@ -197,16 +197,26 @@ export default function JobFile() {
           <dl className="details">
             <dt>PN (project number)</dt><dd>{job.job_no}</dd>
             <dt>Client</dt><dd>{job.clients?.name}</dd>
+            <dt>Client reference no.</dt><dd>{show(job.client_ref_no)}</dd>
             <dt>Service</dt><dd>{pretty(job.service_type)}</dd>
             <dt>BL / AWB no.</dt><dd>{show(job.bl_awb_no)}</dd>
+            <dt>BL release</dt><dd>{job.bl_release_type ? BL_RELEASE_LABEL[job.bl_release_type] : "—"}</dd>
             <dt>Entry no.</dt><dd>{show(job.entry_no)}</dd>
             <dt>Ticket no.</dt><dd>{show(job.ticket_no)}</dd>
             <dt>Entry color</dt>
             <dd>{job.entry_color ? <span className={"entry-color " + job.entry_color}>{pretty(job.entry_color)}</span> : "—"}</dd>
+            <dt>Entry status</dt><dd>{job.entry_status ? pretty(job.entry_status) : "—"}</dd>
+            <dt>Final SAD sent</dt><dd>{job.final_sad_sent ? "Yes" : "No"}</dd>
+            <dt>SSDT sent</dt><dd>{job.ssdt_sent ? "Yes" : "No"}</dd>
             <dt>Containers</dt><dd>{job.containers?.length ? job.containers.join(", ") : "—"}</dd>
             <dt>Vessel / voyage</dt><dd>{show(job.vessel)} / {show(job.voyage)}</dd>
             <dt>ETA</dt><dd>{show(job.eta)}</dd>
             <dt>Port of discharge</dt><dd>{show(job.port_of_discharge)}</dd>
+            <dt>Port of destination</dt><dd>{show(job.port_of_destination)}</dd>
+            <dt>Container at yard</dt><dd>{show(dateTime(job.container_at_yard_at))}</dd>
+            <dt>Released</dt><dd>{show(dateTime(job.released_at))}</dd>
+            <dt>Trucker</dt><dd>{show(job.trucker_name)}{job.trucker_plate_no ? ` · plate ${job.trucker_plate_no}` : ""}</dd>
+            <dt>Delivery address</dt><dd className="pre">{show(job.delivery_address)}</dd>
             <dt>Carrier</dt><dd>{show(job.carrier)}</dd>
             <dt>Booking no.</dt><dd>{show(job.booking_no)}</dd>
             <dt>Processor</dt><dd>{job.processor ? job.processor.full_name || job.processor.email : "Unassigned"}</dd>

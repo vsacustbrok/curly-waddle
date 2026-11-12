@@ -50,7 +50,7 @@ export default function Board() {
     return jobs.filter((j) => {
       if (mine && j.processor_id !== profile!.id) return false;
       if (!needle) return true;
-      return [j.job_no, j.clients?.name, j.bl_awb_no, j.entry_no, j.ticket_no, ...(j.containers ?? [])]
+      return [j.job_no, j.clients?.name, j.client_ref_no, j.bl_awb_no, j.entry_no, j.ticket_no, j.trucker_plate_no, ...(j.containers ?? [])]
         .some((v) => v?.toLowerCase().includes(needle));
     });
   }, [jobs, q, mine, profile]);
@@ -63,7 +63,7 @@ export default function Board() {
       <div className="row spread">
         <h1>Status board</h1>
         <div className="row">
-          <input placeholder="Search PN, client, BL, container…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input placeholder="Search PN, client, ref., BL, container, plate…" value={q} onChange={(e) => setQ(e.target.value)} />
           {role === "processor" && (
             <label className="check"><input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> My shipments</label>
           )}

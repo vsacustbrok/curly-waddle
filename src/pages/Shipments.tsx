@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { STATUS_LABEL, pretty, type Job } from "../lib/types";
+import { BL_RELEASE_LABEL, STATUS_LABEL, pretty, type Job } from "../lib/types";
 import { summarize, type DocLike, type Shipment } from "../lib/shipment";
 
 type Row = Job & {
@@ -41,18 +41,29 @@ async function exportXlsx(lines: Line[]) {
   const head = (value: string) => ({ value, fontWeight: "bold" as const });
   const text = (v: string | null | undefined) => (v ? { value: v, type: String } : null);
   const number = (v: number | null, format?: string) => (v == null ? null : { value: v, type: Number, ...(format ? { format } : {}) });
+  // Date and time in the viewer's local time, as Excel shows clock times without a time zone.
+  const dateTime = (iso: string | null) => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    return { value: new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes())), type: Date, format: "yyyy-mm-dd hh:mm" };
+  };
   const date = (iso: string | null) => (iso ? { value: new Date(iso.slice(0, 10) + "T00:00:00Z"), type: Date, format: "yyyy-mm-dd" } : null);
   const columns: [string, number, (l: Line) => unknown][] = [
     ["PN", 12, (l) => text(l.job.job_no)],
     ["Status", 12, (l) => text(STATUS_LABEL[l.job.status])],
     ["Service", 12, (l) => text(pretty(l.job.service_type))],
     ["Client", 30, (l) => text(l.job.clients?.name)],
+    ["Client ref. no.", 16, (l) => text(l.job.client_ref_no)],
     ["Shipper", 30, (l) => text(l.s.shipper)],
     ["Consignee", 30, (l) => text(l.s.consignee)],
     ["BL / AWB no.", 18, (l) => text(l.bl)],
     ["Entry no.", 16, (l) => text(l.job.entry_no)],
     ["Ticket no.", 16, (l) => text(l.job.ticket_no)],
     ["Entry color", 12, (l) => text(l.job.entry_color ? pretty(l.job.entry_color) : null)],
+    ["Entry status", 12, (l) => text(l.job.entry_status ? pretty(l.job.entry_status) : null)],
+    ["Final SAD sent", 13, (l) => text(l.job.final_sad_sent ? "Yes" : "No")],
+    ["SSDT sent", 10, (l) => text(l.job.ssdt_sent ? "Yes" : "No")],
+    ["BL release", 14, (l) => text(l.job.bl_release_type ? BL_RELEASE_LABEL[l.job.bl_release_type] : null)],
     ["Containers", 24, (l) => text(l.containers.join(", "))],
     ["Vessel", 20, (l) => text(l.vessel)],
     ["Voyage", 10, (l) => text(l.voyage)],
@@ -60,6 +71,12 @@ async function exportXlsx(lines: Line[]) {
     ["Shipped on board", 16, (l) => date(l.s.shippedOnBoard)],
     ["Port of loading", 18, (l) => text(l.s.portOfLoading)],
     ["Port of discharge", 18, (l) => text(l.pod)],
+    ["Port of destination", 18, (l) => text(l.job.port_of_destination)],
+    ["Container at yard", 18, (l) => dateTime(l.job.container_at_yard_at)],
+    ["Released", 18, (l) => dateTime(l.job.released_at)],
+    ["Trucker", 20, (l) => text(l.job.trucker_name)],
+    ["Plate no.", 12, (l) => text(l.job.trucker_plate_no)],
+    ["Delivery address", 40, (l) => text(l.job.delivery_address)],
     ["Packages", 10, (l) => number(l.s.packages)],
     ["Package type", 12, (l) => text(l.s.packageType)],
     ["Gross weight", 14, (l) => number(l.s.grossWeight, "#,##0.00")],

@@ -38,7 +38,7 @@ export default function Board() {
     return jobs.filter((j) => {
       if (mine && j.processor_id !== profile!.id) return false;
       if (!needle) return true;
-      return [j.job_no, j.clients?.name, j.bl_awb_no, j.entry_no, ...(j.containers ?? [])]
+      return [j.job_no, j.clients?.name, j.bl_awb_no, j.entry_no, j.ticket_no, ...(j.containers ?? [])]
         .some((v) => v?.toLowerCase().includes(needle));
     });
   }, [jobs, q, mine, profile]);
@@ -70,7 +70,7 @@ export default function Board() {
                 <h2>{STATUS_LABEL[s]} <span className="count">{list.length}</span></h2>
                 {list.map((j) => (
                   <Link key={j.id} to={`/jobs/${j.id}`} className="jobcard">
-                    <strong>{j.job_no}</strong>
+                    <strong>{j.job_no}{j.entry_color && <span className={"entry-color " + j.entry_color}>{pretty(j.entry_color)}</span>}</strong>
                     <span>{j.clients?.name}</span>
                     <span className="muted small">{pretty(j.service_type)}{j.bl_awb_no ? ` · ${j.bl_awb_no}` : ""}</span>
                     {j.eta && (

@@ -51,6 +51,8 @@ async function exportXlsx(lines: Line[]) {
     ["Consignee", 30, (l) => text(l.s.consignee)],
     ["BL / AWB no.", 18, (l) => text(l.bl)],
     ["Entry no.", 16, (l) => text(l.job.entry_no)],
+    ["Ticket no.", 16, (l) => text(l.job.ticket_no)],
+    ["Entry color", 12, (l) => text(l.job.entry_color ? pretty(l.job.entry_color) : null)],
     ["Containers", 24, (l) => text(l.containers.join(", "))],
     ["Vessel", 20, (l) => text(l.vessel)],
     ["Voyage", 10, (l) => text(l.voyage)],
@@ -104,7 +106,7 @@ export default function Shipments() {
     const needle = q.trim().toLowerCase();
     if (!needle) return lines;
     return lines.filter((l) =>
-      [l.job.job_no, l.job.clients?.name, l.s.shipper, l.s.consignee, l.bl, l.job.entry_no, l.vessel, l.s.goods, ...l.containers, ...l.s.invoiceNos]
+      [l.job.job_no, l.job.clients?.name, l.s.shipper, l.s.consignee, l.bl, l.job.entry_no, l.job.ticket_no, l.vessel, l.s.goods, ...l.containers, ...l.s.invoiceNos]
         .some((v) => v?.toLowerCase().includes(needle)));
   }, [lines, q]);
 

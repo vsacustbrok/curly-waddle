@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import {
-  DOC_TYPES, PLACEHOLDER_CLIENT, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, pretty, prettySource,
+  DOC_TYPES, PLACEHOLDER_CLIENT, STATUSES, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, pretty, prettySource,
   type Client, type Job, type JobDocument, type JobStatus, type Profile, type ScanResult, type StatusHistory,
 } from "../lib/types";
 import { partsOf, summarize, summaryRows } from "../lib/shipment";
@@ -187,7 +187,7 @@ export default function JobFile() {
         </div>
         {form ? (
           <form onSubmit={save}>
-            <JobFields form={form} setForm={setForm} clients={clients} staff={staff} />
+            <JobFields form={form} setForm={setForm} clients={clients} staff={staff} lodged={STATUSES.indexOf(job.status) >= STATUSES.indexOf("lodged")} />
             <div className="row">
               <button disabled={!!busy}>Save</button>
               <button type="button" className="ghost" onClick={() => setForm(null)}>Cancel</button>
@@ -200,6 +200,9 @@ export default function JobFile() {
             <dt>Service</dt><dd>{pretty(job.service_type)}</dd>
             <dt>BL / AWB no.</dt><dd>{show(job.bl_awb_no)}</dd>
             <dt>Entry no.</dt><dd>{show(job.entry_no)}</dd>
+            <dt>Ticket no.</dt><dd>{show(job.ticket_no)}</dd>
+            <dt>Entry color</dt>
+            <dd>{job.entry_color ? <span className={"entry-color " + job.entry_color}>{pretty(job.entry_color)}</span> : "—"}</dd>
             <dt>Containers</dt><dd>{job.containers?.length ? job.containers.join(", ") : "—"}</dd>
             <dt>Vessel / voyage</dt><dd>{show(job.vessel)} / {show(job.voyage)}</dd>
             <dt>ETA</dt><dd>{show(job.eta)}</dd>

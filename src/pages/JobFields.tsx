@@ -1,19 +1,19 @@
-import type { Client, Job, Profile, ServiceType } from "../lib/types";
+import { ENTRY_COLORS, pretty, type Client, type Job, type Profile, type ServiceType } from "../lib/types";
 
 export type JobForm = {
   job_no: string; client_id: string; service_type: ServiceType; bl_awb_no: string; containers: string; vessel: string;
   voyage: string; eta: string; port_of_discharge: string; booking_no: string; carrier: string;
-  entry_no: string; processor_id: string; notes: string;
+  entry_no: string; ticket_no: string; entry_color: string; processor_id: string; notes: string;
 };
 export const emptyJob: JobForm = {
   job_no: "", client_id: "", service_type: "brokerage", bl_awb_no: "", containers: "", vessel: "", voyage: "", eta: "",
-  port_of_discharge: "", booking_no: "", carrier: "", entry_no: "", processor_id: "", notes: "",
+  port_of_discharge: "", booking_no: "", carrier: "", entry_no: "", ticket_no: "", entry_color: "", processor_id: "", notes: "",
 };
 export const fromJob = (j: Job): JobForm => ({
   job_no: j.job_no, client_id: j.client_id, service_type: j.service_type, bl_awb_no: j.bl_awb_no ?? "",
   containers: (j.containers ?? []).join(", "), vessel: j.vessel ?? "", voyage: j.voyage ?? "", eta: j.eta ?? "",
   port_of_discharge: j.port_of_discharge ?? "", booking_no: j.booking_no ?? "", carrier: j.carrier ?? "",
-  entry_no: j.entry_no ?? "", processor_id: j.processor_id ?? "", notes: j.notes ?? "",
+  entry_no: j.entry_no ?? "", ticket_no: j.ticket_no ?? "", entry_color: j.entry_color ?? "", processor_id: j.processor_id ?? "", notes: j.notes ?? "",
 });
 const n = (s: string) => (s.trim() === "" ? null : s.trim());
 export const toRow = (f: JobForm) => ({
@@ -23,11 +23,14 @@ export const toRow = (f: JobForm) => ({
   containers: f.containers.split(/[\s,;]+/).map((c) => c.trim().toUpperCase()).filter(Boolean),
   vessel: n(f.vessel), voyage: n(f.voyage), eta: n(f.eta), port_of_discharge: n(f.port_of_discharge),
   booking_no: n(f.booking_no), carrier: n(f.carrier), entry_no: n(f.entry_no),
+  ticket_no: n(f.ticket_no), entry_color: n(f.entry_color),
   processor_id: n(f.processor_id), notes: n(f.notes),
 });
 
-export default function JobFields({ form, setForm, clients, staff }: {
+export default function JobFields({ form, setForm, clients, staff, lodged = false }: {
   form: JobForm; setForm: (f: JobForm) => void; clients: Client[]; staff: Profile[];
+  /** The entry colour can be chosen only once the entry has been lodged. */
+  lodged?: boolean;
 }) {
   const set = (k: keyof JobForm) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
   return (
@@ -48,6 +51,13 @@ export default function JobFields({ form, setForm, clients, staff }: {
       </label>
       <label>BL / AWB no.<input value={form.bl_awb_no} onChange={set("bl_awb_no")} /></label>
       <label>Entry no.<input value={form.entry_no} onChange={set("entry_no")} /></label>
+      <label>Ticket no.<input value={form.ticket_no} onChange={set("ticket_no")} /></label>
+      <label>Entry color{lodged ? "" : " (after the entry is lodged)"}
+        <select value={form.entry_color} onChange={set("entry_color")} disabled={!lodged}>
+          <option value="">Not set</option>
+          {ENTRY_COLORS.map((c) => <option key={c} value={c}>{pretty(c)}</option>)}
+        </select>
+      </label>
       <label className="wide">Containers (comma separated)<input value={form.containers} onChange={set("containers")} placeholder="MSCU1234565, …" /></label>
       <label>Vessel<input value={form.vessel} onChange={set("vessel")} /></label>
       <label>Voyage<input value={form.voyage} onChange={set("voyage")} /></label>

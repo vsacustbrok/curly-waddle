@@ -39,6 +39,10 @@ export const checkLabel = (check: string) => CHECK_LABEL[check] ?? pretty(check)
 /** "bill_of_lading: file.pdf" -> "Bill of lading: file.pdf" */
 export const prettySource = (source: string) => source.replace(/^[a-z_]+(?=:)/, (t) => (t === "job" ? "Project record" : pretty(t)));
 
+/** The selectivity colour customs gives an entry once it is lodged. */
+export const ENTRY_COLORS = ["red", "orange", "yellow"] as const;
+export type EntryColor = (typeof ENTRY_COLORS)[number];
+
 export type Profile = { id: string; email: string | null; full_name: string; role: Role; created_at: string };
 export type Client = {
   id: string; name: string; tin: string | null; address: string | null;
@@ -48,7 +52,8 @@ export type Job = {
   id: string; job_no: string; client_id: string; service_type: ServiceType; status: JobStatus;
   bl_awb_no: string | null; containers: string[]; vessel: string | null; voyage: string | null;
   eta: string | null; port_of_discharge: string | null; booking_no: string | null; carrier: string | null;
-  entry_no: string | null; processor_id: string | null; notes: string | null;
+  entry_no: string | null; ticket_no: string | null; entry_color: EntryColor | null;
+  processor_id: string | null; notes: string | null;
   created_at: string; updated_at: string;
   clients?: { name: string } | null;
   processor?: { full_name: string; email: string | null } | null;

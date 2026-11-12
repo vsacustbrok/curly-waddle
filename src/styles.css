@@ -133,3 +133,8 @@ main > p.muted, main > p.ok, main > p.warn, main > p.error { background: rgb(255
 .brand img { height: 40px; width: auto; }
 .login-logo { width: 150px; height: auto; align-self: center; }
 .narrow h1 { text-align: center; }
+.entry-color { display: inline-block; margin-left: 6px; padding: 1px 9px; border-radius: 999px; font-size: .75rem; font-weight: 700; color: #fff; vertical-align: middle; }
+.entry-color.red { background: #c62828; }
+.entry-color.orange { background: #e06c00; }
+.entry-color.yellow { background: #f6d21f; color: #3d3300; }
+dd .entry-color { margin-left: 0; }

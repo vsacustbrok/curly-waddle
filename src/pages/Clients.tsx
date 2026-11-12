@@ -16,6 +16,10 @@ export default function Clients() {
   const [form, setForm] = useState<Form>(blank);
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [mergeFrom, setMergeFrom] = useState<Client | null>(null);
+  const [mergeInto, setMergeInto] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const load = () => supabase.from("clients").select("*").order("name").then(({ data, error }) => {
     if (error) setError(error.message);
@@ -43,10 +47,42 @@ export default function Clients() {
     load();
   }
 
+  /** Moves every shipment of one client to another and removes the first (for misspelt duplicates). */
+  async function merge() {
+    if (!mergeFrom || !mergeInto) return;
+    setBusy(true); setError(""); setNotice("");
+    const keep = clients.find((c) => c.id === mergeInto)!;
+    const { data, error } = await supabase.rpc("merge_clients", { from_id: mergeFrom.id, into_id: mergeInto });
+    setBusy(false);
+    if (error) { setError(error.message); return; }
+    setNotice(`${mergeFrom.name} was merged into ${keep.name}: ${data ?? 0} shipment(s) moved.`);
+    setMergeFrom(null); setMergeInto("");
+    load();
+  }
+
   return (
     <>
       <h1>Clients</h1>
       {error && <p className="error">{error}</p>}
+      {notice && <p className="ok" role="status">{notice}</p>}
+      {mergeFrom && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Merge client">
+          <div className="card modal">
+            <h2>Merge {mergeFrom.name}</h2>
+            <p>All shipments of <strong>{mergeFrom.name}</strong> move to the client you pick, and {mergeFrom.name} is removed. This cannot be undone.</p>
+            <label>Keep this client
+              <select value={mergeInto} onChange={(e) => setMergeInto(e.target.value)} aria-label="Client to keep">
+                <option value="">Select…</option>
+                {clients.filter((c) => c.id !== mergeFrom.id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+            <div className="row">
+              <button type="button" onClick={merge} disabled={busy || !mergeInto}>{busy ? "Merging…" : "Merge"}</button>
+              <button type="button" className="ghost" onClick={() => { setMergeFrom(null); setMergeInto(""); }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
       {canEditClients(role) && (
         <form className="card" onSubmit={submit}>
           <h2>{editing ? "Edit client" : "Add client"}</h2>
@@ -63,6 +99,7 @@ export default function Clients() {
           </div>
         </form>
       )}
+      {role === "owner" && <p className="muted small">Same client saved under two spellings? Use “Merge into…” on the misspelt one to move its shipments to the right name.</p>}
       <section className="card">
         {clients.length === 0 ? <p className="muted">No clients yet.</p> : (
           <table>
@@ -79,6 +116,7 @@ export default function Clients() {
                         window.scrollTo(0, 0);
                       }}>Edit</button>
                     )}
+                    {role === "owner" && <button className="link" onClick={() => { setMergeFrom(c); setMergeInto(""); }}>Merge into…</button>}
                     {role === "owner" && <button className="link danger-text" onClick={() => remove(c)}>Delete</button>}
                   </td>
                 </tr>

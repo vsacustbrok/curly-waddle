@@ -227,36 +227,42 @@ export default function JobFile() {
           <div className="detail-groups">
             <Group title="1. Shipment and client" rows={[
               ["PN (project number)", job.job_no], ["Client", job.clients?.name], ["Client reference no.", job.client_ref_no],
+              ["Item description", job.item_description], ["Supplier", job.supplier],
               ["Service", pretty(job.service_type)],
               ["Processor", job.processor ? job.processor.full_name || job.processor.email : "Unassigned"],
             ]} />
             <Group title="2. Arrival" rows={[
               ["Carrier", job.carrier], ["Vessel / voyage", [job.vessel, job.voyage].filter(Boolean).join(" / ") || null],
               ["BL / AWB no.", job.bl_awb_no], ["Booking no.", job.booking_no], ["ETA", dayLabel(job.eta)],
-              ["Port of discharge", job.port_of_discharge], ["Port of destination", job.port_of_destination],
-              ["Containers", job.containers?.length ? job.containers.join(", ") : null],
+              ["Port of discharge", job.port_of_discharge], ["Warehouse", job.port_of_destination],
+              ["Containers", job.containers?.length ? <span className="pre">{job.containers.join("\n")}</span> : null],
             ]} />
-            <Group title="3. BL release" rows={[
-              ["Release by", job.bl_release_type ? BL_RELEASE_LABEL[job.bl_release_type] : null],
-              ...(job.bl_release_type === "cro" ? [["CRO valid until", dayLabel(job.cro_valid_until)] as Row] : []),
+            <Group title="3. CRO and BL release" rows={[
+              ["CRO no.", job.cro_no], ["CRO valid until", dayLabel(job.cro_valid_until)],
+              ["BL release by", job.bl_release_type ? BL_RELEASE_LABEL[job.bl_release_type] : null],
               ...(job.bl_release_type === "original" ? [["Original BL picked up", dayLabel(job.obl_pickup_date)] as Row,
                 ["Original BL shipping date", dayLabel(job.obl_shipping_date)] as Row] : []),
               ...(job.bl_release_type === "telex" ? [["Telex released on", dayLabel(job.telex_release_date)] as Row] : []),
-              ...(job.bl_release_type === "seaway" ? [["Seaway bill date", dayLabel(job.telex_release_date)] as Row] : []),
+              ...(job.bl_release_type === "seaway" ? [["SWB date", dayLabel(job.telex_release_date)] as Row] : []),
             ]} />
             <Group title="4. Entry filing" rows={[
-              ["Entry no.", job.entry_no], ["Ticket no.", job.ticket_no],
+              ["Entry no.", job.entry_no], ["Entry filed on", dayLabel(job.entry_filed_date)], ["Ticket no.", job.ticket_no],
+              ["Lodge status code", job.lodge_status], ["DP / contract", job.dp_contract],
               ["Entry status", job.entry_status ? pretty(job.entry_status) : null],
               ["Entry color", job.entry_color ? <span className={"entry-color " + job.entry_color}>{pretty(job.entry_color)}</span> : null],
               ["Final SAD sent", job.final_sad_sent ? `Yes${job.final_sad_sent_date ? `, ${dayLabel(job.final_sad_sent_date)}` : ""}` : "No"],
               ["SSDT sent", job.ssdt_sent ? `Yes${job.ssdt_sent_date ? `, ${dayLabel(job.ssdt_sent_date)}` : ""}` : "No"],
             ]} />
             <Group title="5. Release and delivery" rows={[
-              ["Container at yard", dateTime(job.container_at_yard_at)], ["Released", dateTime(job.released_at)],
+              ["Yard", job.yard], ["Container at yard", dateTime(job.container_at_yard_at)], ["Released", dateTime(job.released_at)],
               ["Trucker", job.trucker_name], ["Plate no.", job.trucker_plate_no],
               ["Delivery address", job.delivery_address ? <span className="pre">{job.delivery_address}</span> : null],
+              ["Empty return", [job.empty_return, dayLabel(job.empty_return_date)].filter(Boolean).join(", ") || null],
             ]} />
-            {job.notes && <Group title="6. General notes" rows={[["Notes", <span className="pre">{job.notes}</span>]]} />}
+            {(job.lodge_remarks || job.lodge_remarks_2 || job.lodge_note || job.notes) && <Group title="6. Remarks and notes" rows={[
+              ["Remarks", job.lodge_remarks], ["Remarks 2", job.lodge_remarks_2], ["Note", job.lodge_note],
+              ["General notes", job.notes ? <span className="pre">{job.notes}</span> : null],
+            ]} />}
           </div>
         )}
       </section>

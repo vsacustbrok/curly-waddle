@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "../lib/supabase";
+import { fetchAll, supabase } from "../lib/supabase";
 import { BL_RELEASE_LABEL, STATUS_LABEL, pretty, type Job } from "../lib/types";
 import { summarize, type DocLike, type Shipment } from "../lib/shipment";
 
@@ -58,6 +58,7 @@ async function exportXlsx(lines: Line[]) {
     ["Consignee", 30, (l) => text(l.s.consignee)],
     ["BL / AWB no.", 18, (l) => text(l.bl)],
     ["Entry no.", 16, (l) => text(l.job.entry_no)],
+    ["Entry filed on", 14, (l) => date(l.job.entry_filed_date)],
     ["Ticket no.", 16, (l) => text(l.job.ticket_no)],
     ["Entry color", 12, (l) => text(l.job.entry_color ? pretty(l.job.entry_color) : null)],
     ["Entry status", 12, (l) => text(l.job.entry_status ? pretty(l.job.entry_status) : null)],
@@ -65,19 +66,20 @@ async function exportXlsx(lines: Line[]) {
     ["Final SAD sent on", 15, (l) => date(l.job.final_sad_sent_date)],
     ["SSDT sent", 10, (l) => text(l.job.ssdt_sent ? "Yes" : "No")],
     ["SSDT sent on", 13, (l) => date(l.job.ssdt_sent_date)],
-    ["BL release", 14, (l) => text(l.job.bl_release_type ? BL_RELEASE_LABEL[l.job.bl_release_type] : null)],
+    ["CRO no.", 14, (l) => text(l.job.cro_no)],
     ["CRO valid until", 14, (l) => date(l.job.cro_valid_until)],
+    ["BL release", 14, (l) => text(l.job.bl_release_type ? BL_RELEASE_LABEL[l.job.bl_release_type] : null)],
     ["Original BL picked up", 18, (l) => date(l.job.obl_pickup_date)],
     ["Original BL shipping date", 20, (l) => date(l.job.obl_shipping_date)],
-    ["Telex / seaway bill date", 20, (l) => date(l.job.telex_release_date)],
-    ["Containers", 24, (l) => text(l.containers.join(", "))],
+    ["Telex / SWB date", 20, (l) => date(l.job.telex_release_date)],
+    ["Containers", 24, (l) => text(l.containers.join(" "))],
     ["Vessel", 20, (l) => text(l.vessel)],
     ["Voyage", 10, (l) => text(l.voyage)],
     ["ETA", 12, (l) => date(l.job.eta)],
     ["Shipped on board", 16, (l) => date(l.s.shippedOnBoard)],
     ["Port of loading", 18, (l) => text(l.s.portOfLoading)],
     ["Port of discharge", 18, (l) => text(l.pod)],
-    ["Port of destination", 18, (l) => text(l.job.port_of_destination)],
+    ["Warehouse", 18, (l) => text(l.job.port_of_destination)],
     ["Container at yard", 18, (l) => dateTime(l.job.container_at_yard_at)],
     ["Released", 18, (l) => dateTime(l.job.released_at)],
     ["Trucker", 20, (l) => text(l.job.trucker_name)],
@@ -112,24 +114,29 @@ export default function Shipments() {
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
   const [exporting, setExporting] = useState(false);
+  const thisYear = new Date().getFullYear();
+  // "open": this year plus anything not lodged yet; a number: entries lodged that year; "all": everything.
+  const [period, setPeriod] = useState<string>("open");
 
   useEffect(() => {
-    supabase.from("jobs")
-      .select("*, clients(name), job_documents(doc_type, extracted), scan_results(error_count, warning_count, run_at)")
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (error) setError(error.message);
-        setRows((data as Row[]) ?? []);
-        setLoading(false);
-      });
-  }, []);
+    setLoading(true);
+    const yearOf = period === "open" ? thisYear : +period;
+    fetchAll<Row>((a, b) => {
+      let query = supabase.from("jobs")
+        .select("*, clients(name), job_documents(doc_type, extracted), scan_results(error_count, warning_count, run_at)");
+      if (period === "open") query = query.or(`entry_filed_date.is.null,entry_filed_date.gte.${yearOf}-01-01`);
+      else if (period !== "all") query = query.gte("entry_filed_date", `${yearOf}-01-01`).lte("entry_filed_date", `${yearOf}-12-31`);
+      return query.order("created_at", { ascending: false }).order("id").range(a, b) as never;
+    }).then((data) => { setError(""); setRows(data); setLoading(false); },
+      (e: Error) => { setError(e.message); setRows([]); setLoading(false); });
+  }, [period, thisYear]);
 
   const lines = useMemo(() => rows.map(toLine), [rows]);
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return lines;
     return lines.filter((l) =>
-      [l.job.job_no, l.job.clients?.name, l.s.shipper, l.s.consignee, l.bl, l.job.entry_no, l.job.ticket_no, l.vessel, l.s.goods, ...l.containers, ...l.s.invoiceNos]
+      [l.job.job_no, l.job.clients?.name, l.s.shipper, l.s.consignee, l.bl, l.job.entry_no, l.job.ticket_no, l.vessel, l.s.goods, l.job.item_description, l.job.supplier, l.job.trucker_plate_no, ...l.containers, ...l.s.invoiceNos]
         .some((v) => v?.toLowerCase().includes(needle)));
   }, [lines, q]);
 
@@ -149,6 +156,11 @@ export default function Shipments() {
       <div className="row spread">
         <h1>Summary of shipments</h1>
         <div className="row">
+          <select value={period} onChange={(e) => setPeriod(e.target.value)} aria-label="Which shipments">
+            <option value="open">{thisYear} and not yet lodged</option>
+            {Array.from({ length: thisYear - 2016 }, (_, i) => thisYear - i).map((y) => <option key={y} value={y}>Lodged in {y}</option>)}
+            <option value="all">All years (slow)</option>
+          </select>
           <input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
           <button disabled={exporting || shown.length === 0} onClick={doExport}>
             {exporting ? "Preparing…" : `Export ${shown.length} to Excel`}
@@ -159,7 +171,7 @@ export default function Shipments() {
         Shipper, consignee, cargo and invoice figures are read from the uploaded documents. Check them against the originals before filing.
       </p>
       {error && <p className="error">{error}</p>}
-      {loading ? <p className="muted">Loading…</p> : lines.length === 0 ? <p className="muted">No shipments yet.</p> : (
+      {loading ? <p className="muted">Loading…</p> : lines.length === 0 ? <p className="muted">No shipments in this period.</p> : (
         <section className="card">
           <table className="wide-table">
             <thead>
@@ -173,9 +185,9 @@ export default function Shipments() {
               {shown.map((l) => (
                 <tr key={l.job.id}>
                   <td><Link to={`/jobs/${l.job.id}`}>{l.job.job_no}</Link></td>
-                  <td>{STATUS_LABEL[l.job.status]}</td>
+                  <td>{STATUS_LABEL[l.job.status]}{l.job.entry_filed_date && <div className="muted small nowrap">lodged {l.job.entry_filed_date}</div>}</td>
                   <td>{l.job.clients?.name}</td>
-                  <td>{l.s.shipper}</td>
+                  <td>{l.s.shipper ?? l.job.supplier}</td>
                   <td>{l.bl}</td>
                   <td>{l.containers.join(", ")}</td>
                   <td>{[l.vessel, l.voyage].filter(Boolean).join(" / ")}</td>
@@ -183,7 +195,7 @@ export default function Shipments() {
                   <td>{l.pod}</td>
                   <td className="num">{n(l.s.packages)} {l.s.packageType}</td>
                   <td className="num">{n(l.s.grossWeight)} {l.s.grossWeight != null && l.s.weightUnit}</td>
-                  <td className="clip" title={l.s.goods ?? ""}>{l.s.goods}</td>
+                  <td className="clip" title={l.s.goods ?? l.job.item_description ?? ""}>{l.s.goods ?? l.job.item_description}</td>
                   <td>{l.s.invoiceNos.join(", ")}</td>
                   <td className="num">{l.s.invoiceTotal != null ? `${l.s.currency ?? ""} ${n(l.s.invoiceTotal)}` : l.s.invoiceTotalsText}</td>
                   <td className="nowrap">{l.s.spsMustShipOut}</td>

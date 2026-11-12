@@ -24,6 +24,8 @@ function CheckBadge({ scans }: { scans?: Scan[] }) {
   return <span className="check-badge good">Documents OK</span>;
 }
 
+const BOARD_DAYS = 60;
+
 export default function Board() {
   const { profile } = useAuth();
   const role = profile!.role;
@@ -35,8 +37,12 @@ export default function Board() {
   const [showBilled, setShowBilled] = useState(false);
 
   useEffect(() => {
+    // The board is for live work: shipments not lodged yet, or lodged in the last 60 days.
+    // Older ones stay under Shipments and Reports.
+    const since = new Date(Date.now() - BOARD_DAYS * 86400000).toISOString().slice(0, 10);
     supabase.from("jobs")
       .select("*, clients(name), processor:profiles!jobs_processor_id_fkey(full_name,email), scan_results(error_count, warning_count, run_at)")
+      .or(`entry_filed_date.is.null,entry_filed_date.gte.${since}`)
       .order("eta", { ascending: true, nullsFirst: false })
       .then(({ data, error }) => {
         if (error) setError(error.message);
@@ -70,6 +76,7 @@ export default function Board() {
           <label className="check"><input type="checkbox" checked={showBilled} onChange={(e) => setShowBilled(e.target.checked)} /> Show billed</label>
         </div>
       </div>
+      <p className="muted small">Shipments not lodged yet, or lodged in the last {BOARD_DAYS} days. Older ones are under <Link to="/shipments">Shipments</Link>.</p>
       {error && <p className="error">{error}</p>}
       {loading ? <p className="muted">Loading…</p> : jobs.length === 0 ? (
         <p className="muted">No shipments yet.{(role === "owner" || role === "processor") && <> <Link to="/jobs/new">Create the first shipment</Link>.</>}</p>

@@ -184,3 +184,14 @@ main { padding-bottom: 80px; }
 .activity { background: #f4f7fb; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; }
 .report-text { width: 100%; margin-bottom: 8px; }
 h3.sub { font-size: 1rem; margin: 18px 0 6px; color: var(--accent); }
+.containers { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.field-label { font-size: .85rem; color: var(--muted); }
+.container-row input { width: 220px; font-family: ui-monospace, monospace; letter-spacing: .03em; }
+.stat-row { margin: 6px 0 12px; gap: 8px 14px; }
+.stat { font-size: .9rem; } .stat-row .entry-color { margin-left: 0; }
+
+/* Daily lodge CSV */
+.row.wrap { flex-wrap: wrap; }
+.button-like { display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 8px; background: var(--accent, #0b5cab); color: #fff; cursor: pointer; font-weight: 600; }
+.import-plan, .import-result { margin-top: 1rem; padding: 0.75rem; border: 1px solid var(--line, #d0d7de); border-radius: 8px; }
+.import-plan table { margin: 0.5rem 0; }

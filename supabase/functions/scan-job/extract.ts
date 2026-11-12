@@ -1,5 +1,6 @@
 // Field extraction with the Claude API (structured outputs).
 import Anthropic from "npm:@anthropic-ai/sdk@1.6.0";
+import { PDFDocument } from "npm:pdf-lib@1.17.1";
 import type { Extracted } from "./crosscheck.ts";
 
 export const MODEL = "claude-opus-5-5";
@@ -129,11 +130,136 @@ Field guidance:
 - signed: one of the words yes, no, unclear. Use "yes" if the document carries a handwritten or digital signature of its issuer, "no" if the signature space is blank or the document is marked draft / unsigned, "unclear" if you cannot tell. stamped: the same for an official stamp or seal (carrier, shipper, chamber of commerce, government agency).
 - notes: anything a broker should notice, such as illegible areas, handwritten corrections, or several documents in one file. Otherwise an empty string.`;
 
-export type ExtractOptions = { effort: "low" | "medium"; fast: boolean };
+export type ExtractOptions = { effort: "low" | "medium"; fast: boolean; split?: boolean };
 
 export type ExtractOutcome =
-  | { ok: true; parts: Extracted[]; model: string; usage: unknown; ms: number; speed: string }
+  | { ok: true; parts: Extracted[]; model: string; usage: unknown; ms: number; speed: string; segments: number }
   | { ok: false; error: string };
+
+type FileSource =
+  | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } }
+  | { type: "image"; source: { type: "base64"; media_type: "image/png" | "image/jpeg"; data: string } };
+
+/** One Claude call that must answer in the given JSON shape. Fast mode falls back to standard speed once. */
+async function ask(
+  client: Anthropic,
+  opts: ExtractOptions,
+  req: { system: string; schema: unknown; source: FileSource; text: string; maxTokens: number; effort?: "low" | "medium" },
+) {
+  const request = (fast: boolean) =>
+    client.beta.messages.create({
+      model: MODEL,
+      ...(fast ? { speed: "fast" as const } : {}),
+      max_tokens: req.maxTokens,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      system: req.system,
+      output_config: {
+        effort: req.effort ?? opts.effort,
+        format: { type: "json_schema", schema: req.schema as Record<string, unknown> },
+      },
+      messages: [{ role: "user", content: [req.source, { type: "text", text: req.text }] }],
+    });
+  let response;
+  try {
+    response = await request(opts.fast);
+  } catch (err) {
+    // Fast mode has its own rate limit and is not on every account: fall back to standard speed once.
+    const retryable = err instanceof Anthropic.RateLimitError || err instanceof Anthropic.BadRequestError ||
+      err instanceof Anthropic.PermissionDeniedError;
+    if (!opts.fast || !retryable) throw err;
+    response = await request(false);
+  }
+  if (response.stop_reason === "refusal") throw new ReadError("The model declined to read this document.");
+  if (response.stop_reason === "max_tokens") throw new ReadError("The document was too long to extract in one pass.");
+  const text = response.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("");
+  const speed = (response.usage as { speed?: string | null } | undefined)?.speed ?? "standard";
+  return { json: JSON.parse(text) as unknown, model: response.model, usage: response.usage as unknown, speed };
+}
+
+class ReadError extends Error {}
+
+const pdfSource = (bytes: Uint8Array): FileSource => ({
+  type: "document",
+  source: { type: "base64", media_type: "application/pdf", data: toBase64(bytes) },
+});
+
+/** Read every document in one file (or one slice of a file) in a single call. */
+async function readWhole(client: Anthropic, opts: ExtractOptions, source: FileSource, text: string) {
+  const r = await ask(client, opts, { system: SYSTEM, schema: EXTRACTION_SCHEMA, source, text, maxTokens: 16000 });
+  const parts = (blankToNull(r.json) as { documents?: Extracted[] }).documents ?? [];
+  return { ...r, parts };
+}
+
+const SEGMENT_SCHEMA = {
+  type: "object",
+  properties: {
+    documents: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { first_page: { type: "integer" }, last_page: { type: "integer" } },
+        required: ["first_page", "last_page"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["documents"],
+  additionalProperties: false,
+} as const;
+
+export type PageRange = { first_page: number; last_page: number };
+
+/** Page ranges are usable only if they cover pages 1..pageCount exactly once, in order. */
+export function validRanges(ranges: unknown, pageCount: number): PageRange[] | null {
+  if (!Array.isArray(ranges) || ranges.length === 0) return null;
+  let next = 1;
+  for (const r of ranges as PageRange[]) {
+    if (!Number.isInteger(r?.first_page) || !Number.isInteger(r?.last_page)) return null;
+    if (r.first_page !== next || r.last_page < r.first_page) return null;
+    next = r.last_page + 1;
+  }
+  return next === pageCount + 1 ? (ranges as PageRange[]) : null;
+}
+
+/**
+ * A PDF holding several documents is slow to read in one pass, because the reply is written
+ * one document after another. Find where each document starts and ends, then read the
+ * documents side by side. Returns null whenever that is not clearly safe; the caller then
+ * reads the file in one pass as before.
+ */
+async function readSplit(client: Anthropic, opts: ExtractOptions, bytes: Uint8Array, name: string) {
+  const pdf = await PDFDocument.load(bytes);
+  const pageCount = pdf.getPageCount();
+  if (pageCount < 3) return null;
+  const found = await ask(client, opts, {
+    system:
+      "You are shown a scanned PDF from an import shipment file. It may hold one document or several bound together " +
+      "(bill of lading, commercial invoice, packing list, certificates, permits, notices). Report where each distinct " +
+      "document starts and ends. Every page belongs to exactly one document, in page order, with no gaps. Continuation " +
+      "pages, attached sheets, riders and the reverse side of a document stay with that document. If you are unsure " +
+      "whether a page starts a new document, keep it with the previous one.",
+    schema: SEGMENT_SCHEMA,
+    source: pdfSource(bytes),
+    text: `This PDF has ${pageCount} pages, numbered 1 to ${pageCount}. List the first and last page of each document.`,
+    maxTokens: 2000,
+    effort: "low",
+  });
+  const ranges = validRanges((found.json as { documents?: unknown }).documents, pageCount);
+  if (!ranges || ranges.length < 2) return null;
+  const reads = await Promise.all(ranges.map(async (r) => {
+    const slice = await PDFDocument.create();
+    const idx = Array.from({ length: r.last_page - r.first_page + 1 }, (_, i) => r.first_page - 1 + i);
+    for (const page of await slice.copyPages(pdf, idx)) slice.addPage(page);
+    return readWhole(
+      client, opts, pdfSource(await slice.save()),
+      `File name: ${name} (pages ${r.first_page} to ${r.last_page} of ${pageCount})\nExtract the fields of every document in these pages.`,
+    );
+  }));
+  const parts = reads.flatMap((r) => r.parts);
+  if (reads.some((r) => r.parts.length === 0)) return null;
+  return { parts, model: reads[0].model, usage: reads.map((r) => r.usage), speed: reads[0].speed, segments: ranges.length };
+}
 
 export async function extractDocument(
   client: Anthropic,
@@ -141,69 +267,27 @@ export async function extractDocument(
   opts: ExtractOptions = { effort: "medium", fast: false },
 ): Promise<ExtractOutcome> {
   const started = Date.now();
-  const b64 = toBase64(file.bytes);
-  const source =
-    file.mime === "application/pdf"
-      ? ({ type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } } as const)
-      : ({
-        type: "image",
-        source: { type: "base64", media_type: file.mime as "image/png" | "image/jpeg", data: b64 },
-      } as const);
-
-  const request = (fast: boolean) =>
-    client.beta.messages.create({
-      model: MODEL,
-      ...(fast ? { speed: "fast" as const } : {}),
-      max_tokens: 16000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      system: SYSTEM,
-      output_config: {
-        effort: opts.effort,
-        format: { type: "json_schema", schema: EXTRACTION_SCHEMA as unknown as Record<string, unknown> },
-      },
-      messages: [{
-        role: "user",
-        content: [
-          source,
-          {
-            type: "text",
-            text: `File name: ${file.name}\n${
-              file.declaredType === "other" ? "" : `The uploader filed this as: ${file.declaredType}\n`
-            }Extract the fields of every document in this file.`,
-          },
-        ],
-      }],
-    });
-
+  const isPdf = file.mime === "application/pdf";
   try {
-    let response;
-    try {
-      response = await request(opts.fast);
-    } catch (err) {
-      // Fast mode has its own rate limit and is not on every account: fall back to standard speed once.
-      const retryable = err instanceof Anthropic.RateLimitError || err instanceof Anthropic.BadRequestError ||
-        err instanceof Anthropic.PermissionDeniedError;
-      if (!opts.fast || !retryable) throw err;
-      response = await request(false);
+    if (isPdf && opts.split) {
+      // Any trouble splitting (an unusual PDF, an unclear page list, a failed slice) falls through to the one-pass read.
+      const split = await readSplit(client, opts, file.bytes, file.name).catch(() => null);
+      if (split) return { ok: true, ...split, ms: Date.now() - started };
     }
-
-    if (response.stop_reason === "refusal") {
-      return { ok: false, error: "The model declined to read this document." };
-    }
-    if (response.stop_reason === "max_tokens") {
-      return { ok: false, error: "The document was too long to extract in one pass." };
-    }
-    const text = response.content
-      .filter((b) => b.type === "text")
-      .map((b) => (b as { text: string }).text)
-      .join("");
-    const parsed = blankToNull(JSON.parse(text)) as { documents?: Extracted[] };
-    const parts = parsed.documents ?? [];
-    if (parts.length === 0) return { ok: false, error: "No document could be read from this file." };
-    const speed = (response.usage as { speed?: string | null } | undefined)?.speed ?? "standard";
-    return { ok: true, parts, model: response.model, usage: response.usage, ms: Date.now() - started, speed };
+    const source: FileSource = isPdf ? pdfSource(file.bytes) : {
+      type: "image",
+      source: { type: "base64", media_type: file.mime as "image/png" | "image/jpeg", data: toBase64(file.bytes) },
+    };
+    const whole = await readWhole(
+      client, opts, source,
+      `File name: ${file.name}\n${
+        file.declaredType === "other" ? "" : `The uploader filed this as: ${file.declaredType}\n`
+      }Extract the fields of every document in this file.`,
+    );
+    if (whole.parts.length === 0) return { ok: false, error: "No document could be read from this file." };
+    return { ok: true, parts: whole.parts, model: whole.model, usage: whole.usage, speed: whole.speed, segments: 1, ms: Date.now() - started };
   } catch (err) {
+    if (err instanceof ReadError) return { ok: false, error: err.message };
     if (err instanceof Anthropic.RateLimitError) return { ok: false, error: "Claude API rate limit reached. Try again shortly." };
     if (err instanceof Anthropic.AuthenticationError) return { ok: false, error: "The Claude API key is missing or invalid." };
     if (err instanceof Anthropic.BadRequestError) return { ok: false, error: `Claude API rejected the request: ${err.message}` };

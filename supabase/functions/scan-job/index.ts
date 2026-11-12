@@ -20,9 +20,9 @@ import { extraChecks } from "./extra.ts";
 const SCAN_ROLES = new Set(["owner", "processor"]);
 const MAX_DOCS = 15;
 
-type ScanSettings = { effort: "low" | "medium"; fast: boolean; concurrency: number };
+type ScanSettings = { effort: "low" | "medium"; fast: boolean; split: boolean; concurrency: number };
 /** Settings from app_settings ("scan" row), with safe defaults; a request may override effort and fast. */
-function scanSettings(stored: unknown, body: { effort?: unknown; fast?: unknown }): ScanSettings {
+function scanSettings(stored: unknown, body: { effort?: unknown; fast?: unknown; split?: unknown }): ScanSettings {
   const s = (stored && typeof stored === "object" ? stored : {}) as Record<string, unknown>;
   const effort = body.effort ?? s.effort;
   const fast = body.fast ?? s.fast;
@@ -30,6 +30,8 @@ function scanSettings(stored: unknown, body: { effort?: unknown; fast?: unknown 
   return {
     effort: effort === "low" ? "low" : "medium",
     fast: fast === true,
+    // Read the documents inside a multi-document PDF side by side. On unless switched off.
+    split: (body.split ?? s.split) !== false,
     concurrency: Number.isFinite(n) ? Math.min(6, Math.max(1, Math.round(n))) : 4,
   };
 }
@@ -80,7 +82,7 @@ Deno.serve(async (req) => {
   }
 
   // --- input ---
-  let body: { job_id?: string; force?: boolean; effort?: unknown; fast?: unknown };
+  let body: { job_id?: string; force?: boolean; effort?: unknown; fast?: unknown; split?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -136,7 +138,7 @@ Deno.serve(async (req) => {
         }
         const now = new Date().toISOString();
         if (outcome.ok) {
-          const extracted = { parts: outcome.parts, _model: outcome.model, _ms: outcome.ms, _speed: outcome.speed };
+          const extracted = { parts: outcome.parts, _model: outcome.model, _ms: outcome.ms, _speed: outcome.speed, _segments: outcome.segments };
           // Files uploaded without a type ("other") are filed under what was found in them.
           const detected = d.doc_type === "other" ? primaryType(outcome.parts) : null;
           const update: Record<string, unknown> = { extracted, extracted_at: now, extract_error: null };

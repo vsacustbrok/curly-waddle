@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
     issues.push({
       severity: "warning",
       check: "extraction",
-      message: `This job has ${(allDocs ?? []).length} files; only the first ${MAX_DOCS} are scanned.`,
+      message: `This shipment has ${(allDocs ?? []).length} files; only the first ${MAX_DOCS} are scanned.`,
       values: [],
     });
   }
@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
     issues.push({
       severity: "warning",
       check: "eta",
-      message: `The documents show ETA ${docEta.date}, but the job has ETA ${job.eta}. Update the job if the arrival date has changed.`,
+      message: `The documents show ETA ${docEta.date}, but the shipment has ETA ${job.eta}. Update the project details if the arrival date has changed.`,
       values: [{ source: "job: ETA", value: job.eta }, { source: docEta.source, value: docEta.date }],
     });
   }
@@ -237,7 +237,7 @@ Deno.serve(async (req) => {
       issues.push({
         severity: "warning",
         check: "job_details",
-        message: `The job details could not be filled in from the documents: ${patchErr.message}`,
+        message: `The project details could not be filled in from the documents: ${patchErr.message}`,
         values: [],
       });
     } else {

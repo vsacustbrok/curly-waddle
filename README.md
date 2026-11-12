@@ -1,48 +1,65 @@
-# VSA Brokerage — Phase 1
+# VSA Customs Brokerage — Phase 1
 
-Customs brokerage workflow site: job files, document upload, a status board, role-based screens, and an
-AI document scan that cross-checks the shipping documents on a job.
+Customs brokerage workflow site: shipments numbered by PN (project number), document upload, an AI
+document check, a status board, an Excel export, role-based screens and an owner Security page.
+
+Live site: https://vsa-brokerage-vsacb.vercel.app
 
 ## Parts
 
 | Part | Where |
 |---|---|
 | Web app (Vite + React + TypeScript) | `src/` |
-| Document scan Edge Function | `supabase/functions/scan-job/` |
-| Database, security rules, `job-docs` bucket | Supabase project `xskvjxbvkgysvwlotjpf` |
+| Document check Edge Function | `supabase/functions/scan-job/` |
+| Database changes | `supabase/migrations/` (Supabase project `xskvjxbvkgysvwlotjpf`) |
+| Logo and background photo (public `site-assets` bucket) | copies in `supabase/site-assets/` |
 
 ## Roles
 
 | Role | Can do |
 |---|---|
-| Owner | Everything: team roles, delete jobs/clients, move a job back, activity log |
-| Processor | Create and edit jobs and clients, upload/delete documents, run scans, move jobs forward |
-| Dispatcher | View jobs, upload documents, mark a job Delivered |
-| Billing | View jobs, edit clients, upload documents, mark a job Paid or Billed |
+| Owner | Everything: team roles, invitations, backups, activity log, delete shipments and clients, move a shipment back |
+| Processor | Create and edit shipments and clients, upload and delete documents, run checks, move shipments forward |
+| Dispatcher | View shipments, upload documents, mark a shipment Delivered |
+| Billing | View shipments, edit clients, upload documents, mark a shipment Paid or Billed |
 | Pending | Nothing until the owner assigns a role |
 
-The first account to sign up becomes the owner. The database enforces every rule; the app only hides
-buttons a role cannot use.
+Sign-up is by invitation: only emails the owner lists on the Security page can create an account, and
+each starts with the role chosen there. The database enforces every rule (row-level security and
+triggers); the app only hides buttons a role cannot use.
 
-## Document scan (`scan-job`)
+## Shipments
 
-`POST /functions/v1/scan-job` with `{ "job_id": "<uuid>", "force": false }`, signed in as owner or processor.
+- **New shipment → From documents** creates a shipment from uploaded files alone: the check fills in the
+  project details and sets the client from the consignee. One PDF may hold several documents.
+- Each shipment has a PN (editable; blank numbers it automatically), entry number, ticket number and,
+  once lodged, an entry colour (red, orange, yellow).
+- The status board shows each shipment's latest check result. **Shipments** lists everything read from
+  the documents and exports it to Excel.
 
-1. Reads each Bill of Lading / Airway Bill, Commercial Invoice and Packing List with the Claude API
-   (`extract.ts`) and saves the fields to `job_documents.extracted`.
-2. Cross-checks the fields in plain code (`crosscheck.ts`): shipper, consignee, BL number, container
-   numbers (with ISO 6346 check digit), gross weight, package count, invoice arithmetic and goods description.
-3. Writes the findings to `scan_results`.
+## Document check (`scan-job`)
 
-It needs one secret on the Supabase project: `ANTHROPIC_API_KEY` (Dashboard → Edge Functions → Secrets).
+`POST /functions/v1/scan-job?forceFunctionRegion=ap-southeast-1` with `{ "job_id": "<uuid>", "force": false }`,
+signed in as owner or processor.
 
-## No typing
+1. Reads every unread file with the Claude API (`extract.ts`). A PDF holding several documents is split
+   and its documents are read side by side. The fields are saved to `job_documents.extracted`, with timing.
+2. Checks the documents against each other in plain code: `crosscheck.ts` (parties, BL number, containers
+   with ISO 6346 check digit, weights, packages, invoice arithmetic, goods), `sps.ts` (SPS import clearance
+   against the bill of lading: importer, must-ship-out date, weight within 3%) and `extra.ts` (notify party,
+   addresses, HS codes, dangerous goods, net weight, volume, Incoterms, origin, signatures and stamps).
+3. Writes the findings and the time taken to `scan_results`.
 
-- **New shipment → From documents** creates a shipment from uploaded files alone: the scan fills in the job
-  details and sets the client from the consignee (reusing an existing client with the same name).
-- Files uploaded without a type are filed under what was found in them. One PDF may hold several documents;
-  each is read and cross-checked separately.
-- **Shipments** lists every shipment with the details read from its documents and exports the list to Excel.
+Settings live in `app_settings` (key `scan`): `effort`, `fast` (fast mode, about twice the API cost),
+`split` and `concurrency`. It needs one secret on the Supabase project: `ANTHROPIC_API_KEY`.
+
+## Security and backups
+
+- Role helpers live in the `private` schema, out of reach of the public API.
+- Every change to shipments, clients, documents, team and invitations is written to `audit_log`; the owner
+  sees it on the Security page.
+- A nightly job (`pg_cron`, 1:00 AM Manila) saves every table to `backups` and keeps the last 14. The owner
+  downloads them from the Security page. Uploaded files are not included.
 
 ## Develop
 
@@ -51,7 +68,7 @@ npm install
 npm run dev
 ```
 
-Cross-check unit tests:
+Checker unit tests:
 
 ```bash
 deno test supabase/functions/scan-job/

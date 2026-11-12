@@ -214,7 +214,7 @@ export function crossCheck(job: JobInput, docs: DocInput[]): CrossCheckResult {
     issues.push({
       severity: "warning",
       check: "documents_present",
-      message: "No Bill of Lading or Airway Bill has been scanned for this job.",
+      message: "No Bill of Lading or Airway Bill has been read for this shipment.",
       values: [],
     });
   }
@@ -222,7 +222,7 @@ export function crossCheck(job: JobInput, docs: DocInput[]): CrossCheckResult {
     issues.push({
       severity: "warning",
       check: "documents_present",
-      message: "No Commercial Invoice has been scanned for this job.",
+      message: "No Commercial Invoice has been read for this shipment.",
       values: [],
     });
   }
@@ -230,7 +230,7 @@ export function crossCheck(job: JobInput, docs: DocInput[]): CrossCheckResult {
     issues.push({
       severity: "warning",
       check: "documents_present",
-      message: "No Packing List has been scanned for this job.",
+      message: "No Packing List has been read for this shipment.",
       values: [],
     });
   }
@@ -266,7 +266,7 @@ export function crossCheck(job: JobInput, docs: DocInput[]): CrossCheckResult {
       issues.push({
         severity: "warning",
         check: "consignee_vs_client",
-        message: `Consignee on the documents does not look like the job's client (${job.client_name}).`,
+        message: `Consignee on the documents does not look like the shipment's client (${job.client_name}).`,
         values: [{ source: "job: client", value: job.client_name }, ...off],
       });
     } else if (consignees.length) {
@@ -293,7 +293,7 @@ export function crossCheck(job: JobInput, docs: DocInput[]): CrossCheckResult {
         issues.push({
           severity: "error",
           check: "bl_number_match",
-          message: "BL/AWB number does not match across the job and its documents.",
+          message: "BL/AWB number does not match across the project details and the documents.",
           values: vals,
         });
       } else {
@@ -504,7 +504,7 @@ export function crossCheck(job: JobInput, docs: DocInput[]): CrossCheckResult {
       issues.push({
         severity: "warning",
         check: "vessel_match",
-        message: "Vessel on the transport document differs from the job record.",
+        message: "Vessel on the transport document differs from the project details.",
         values: [{ source: "job: vessel", value: job.vessel }, { source: label(t), value: e.vessel }],
       });
     }
@@ -512,7 +512,7 @@ export function crossCheck(job: JobInput, docs: DocInput[]): CrossCheckResult {
       issues.push({
         severity: "warning",
         check: "voyage_match",
-        message: "Voyage number on the transport document differs from the job record.",
+        message: "Voyage number on the transport document differs from the project details.",
         values: [{ source: "job: voyage", value: job.voyage }, { source: label(t), value: e.voyage }],
       });
     }

@@ -143,7 +143,7 @@ export function spsChecks(docs: DocInput[]): { issues: Issue[]; matches: Match[]
     issues.push({
       severity: "warning",
       check: "sps_weight",
-      message: "Could not read the permitted quantity from every SPS on this job. Check the weight by hand.",
+      message: "Could not read the permitted quantity from every SPS on this shipment. Check the weight by hand.",
       values: spsDocs.map((d) => ({ source: label(d), value: d.extracted!.sps_permitted_weight ?? null })),
     });
     return { issues, matches };

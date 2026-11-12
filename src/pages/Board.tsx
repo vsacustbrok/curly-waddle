@@ -12,10 +12,22 @@ const FOCUS: Record<Role, JobStatus[]> = {
   billing: ["assessed", "delivered"],
 };
 
+type Scan = { error_count: number; warning_count: number; run_at: string };
+type BoardJob = Job & { scan_results?: Scan[] };
+
+/** The result of the latest document check, as a small badge. */
+function CheckBadge({ scans }: { scans?: Scan[] }) {
+  const latest = [...(scans ?? [])].sort((a, b) => b.run_at.localeCompare(a.run_at))[0];
+  if (!latest) return <span className="check-badge none">Not checked</span>;
+  if (latest.error_count) return <span className="check-badge bad">{latest.error_count} to fix</span>;
+  if (latest.warning_count) return <span className="check-badge review">{latest.warning_count} to review</span>;
+  return <span className="check-badge good">Documents OK</span>;
+}
+
 export default function Board() {
   const { profile } = useAuth();
   const role = profile!.role;
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobs, setJobs] = useState<BoardJob[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -24,11 +36,11 @@ export default function Board() {
 
   useEffect(() => {
     supabase.from("jobs")
-      .select("*, clients(name), processor:profiles!jobs_processor_id_fkey(full_name,email)")
+      .select("*, clients(name), processor:profiles!jobs_processor_id_fkey(full_name,email), scan_results(error_count, warning_count, run_at)")
       .order("eta", { ascending: true, nullsFirst: false })
       .then(({ data, error }) => {
         if (error) setError(error.message);
-        setJobs((data as Job[]) ?? []);
+        setJobs((data as BoardJob[]) ?? []);
         setLoading(false);
       });
   }, []);
@@ -76,6 +88,7 @@ export default function Board() {
                     {j.eta && (
                       <span className={"small " + (j.eta < today && STATUSES.indexOf(s) < 4 ? "error" : "muted")}>ETA {j.eta}</span>
                     )}
+                    <CheckBadge scans={j.scan_results} />
                   </Link>
                 ))}
               </section>

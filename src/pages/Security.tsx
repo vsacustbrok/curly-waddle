@@ -13,7 +13,7 @@ type Audit = {
 const fmt = (iso: string) => new Date(iso).toLocaleString();
 const kb = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
 const TABLE_LABEL: Record<string, string> = {
-  jobs: "Shipment", clients: "Client", profiles: "Team member", job_documents: "Document", invites: "Invitation",
+  jobs: "Shipment", clients: "Client", profiles: "Team member", job_documents: "Document", invites: "Invitation", job_notes: "Status note",
 };
 const ACTION_LABEL: Record<string, string> = { INSERT: "Added", UPDATE: "Changed", DELETE: "Deleted" };
 
@@ -29,7 +29,7 @@ function saveFile(name: string, data: unknown) {
 /** What the row is, in a few words. */
 function subject(a: Audit): string {
   const d = a.new_data ?? a.old_data ?? {};
-  const name = d.job_no ?? d.name ?? d.file_name ?? d.email ?? a.record_id ?? "";
+  const name = d.job_no ?? d.name ?? d.file_name ?? d.email ?? (typeof d.body === "string" ? `"${d.body.slice(0, 40)}"` : null) ?? a.record_id ?? "";
   return `${TABLE_LABEL[a.table_name] ?? pretty(a.table_name)} ${name}`.trim();
 }
 /** For a change, the fields that differ, as "field: old → new". */

@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { PLACEHOLDER_CLIENT, type Client, type Profile } from "../lib/types";
 import { MAX_FILES, fileProblem, runScan, uploadDocs } from "../lib/docs";
-import JobFields, { emptyJob, toRow, type JobForm } from "./JobFields";
+import JobFields, { ConfirmChanges, describeChanges, emptyJob, toRow, useFormHistory } from "./JobFields";
 
 /** The client new shipments sit under until the consignee has been read from the documents. */
 async function placeholderClientId(): Promise<string> {
@@ -21,7 +21,9 @@ export default function JobNew() {
   const { profile } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [staff, setStaff] = useState<Profile[]>([]);
-  const [form, setForm] = useState<JobForm>(emptyJob);
+  const history = useFormHistory(emptyJob);
+  const form = history.form;
+  const [confirming, setConfirming] = useState<string[] | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
@@ -76,13 +78,18 @@ export default function JobNew() {
     }
   }
 
-  async function submit(e: FormEvent) {
+  /** Creating first shows what was filled in and waits for a confirmation. */
+  function review(e: FormEvent) {
     e.preventDefault();
+    setConfirming(describeChanges(emptyJob, form, { clients, staff }).map((l) => l.replace(/: empty → /, ": ")));
+  }
+  async function submit() {
     setBusy(true);
     setError("");
     const { data, error } = await supabase.from("jobs").insert(toRow(form)).select("id").single();
     setBusy(false);
-    if (error) setError(error.message);
+    setConfirming(null);
+    if (error) setError(error.message.includes("jobs_job_no_key") ? `PN ${form.job_no.trim()} is already used by another shipment. Choose a different one.` : error.message);
     else nav(`/jobs/${data.id}`);
   }
 
@@ -114,12 +121,15 @@ export default function JobNew() {
 
       <details className="card">
         <summary>Or enter the details by hand</summary>
-        <form onSubmit={submit}>
+        <form onSubmit={review}>
           {clients.length === 0 && <p className="muted">No clients yet. <Link to="/clients">Add a client</Link> first.</p>}
-          <JobFields form={form} setForm={setForm} clients={clients} staff={staff} />
-          <div className="row"><button disabled={busy || !form.client_id}>Create shipment</button></div>
+          <JobFields history={history} clients={clients} staff={staff} />
+          <div className="row"><button disabled={busy || !form.client_id}>Create shipment…</button></div>
         </form>
       </details>
+      {confirming && (
+        <ConfirmChanges title="Create this shipment?" lines={confirming} busy={busy} onConfirm={submit} onCancel={() => setConfirming(null)} />
+      )}
     </>
   );
 }

@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import {
-  BL_RELEASE_LABEL, DOC_TYPES, PLACEHOLDER_CLIENT, STATUSES, dateTime, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, pretty, prettySource,
-  type Client, type Job, type JobDocument, type JobStatus, type Profile, type ScanResult, type StatusHistory,
+  BL_RELEASE_LABEL, DOC_TYPES, PLACEHOLDER_CLIENT, STATUSES, dateTime, dayLabel, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, pretty, prettySource,
+  type Client, type Job, type JobDocument, type JobNote, type JobStatus, type Profile, type ScanResult, type StatusHistory,
 } from "../lib/types";
 import { partsOf, summarize, summaryRows } from "../lib/shipment";
 import { runScan, uploadDocs } from "../lib/docs";
-import JobFields, { fromJob, toRow, type JobForm } from "./JobFields";
+import JobFields, { ConfirmChanges, describeChanges, emptyJob, fromJob, today, toRow, useFormHistory } from "./JobFields";
 
 const fmt = (iso: string) => new Date(iso).toLocaleString();
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
@@ -29,7 +29,12 @@ export default function JobFile() {
   const [history, setHistory] = useState<StatusHistory[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [staff, setStaff] = useState<Profile[]>([]);
-  const [form, setForm] = useState<JobForm | null>(null);
+  const [editing, setEditing] = useState(false);
+  const edit = useFormHistory(emptyJob);
+  const [confirming, setConfirming] = useState<string[] | null>(null);
+  const [notes, setNotes] = useState<JobNote[]>([]);
+  const [noteDate, setNoteDate] = useState(today());
+  const [noteText, setNoteText] = useState("");
   const [error, setError] = useState(arrived.error ?? "");
   const [notFound, setNotFound] = useState(false);
   const [busy, setBusy] = useState("");
@@ -48,12 +53,14 @@ export default function JobFile() {
   }, [since]);
 
   const load = useCallback(async () => {
-    const [j, d, s, h] = await Promise.all([
+    const [j, d, s, h, nt] = await Promise.all([
       supabase.from("jobs").select("*, clients(name), processor:profiles!jobs_processor_id_fkey(full_name,email)").eq("id", id!).maybeSingle(),
       supabase.from("job_documents").select("*").eq("job_id", id!).order("uploaded_at"),
       supabase.from("scan_results").select("*").eq("job_id", id!).order("run_at", { ascending: false }).limit(5),
       supabase.from("job_status_history").select("*").eq("job_id", id!).order("changed_at"),
+      supabase.from("job_notes").select("*").eq("job_id", id!).order("note_date", { ascending: false }).order("id", { ascending: false }),
     ]);
+    setNotes((nt.data as JobNote[]) ?? []);
     if (j.error) setError(j.error.message);
     if (!j.data) setNotFound(true);
     setJob(j.data as Job | null);
@@ -92,13 +99,36 @@ export default function JobFile() {
     return error?.message;
   });
 
-  const save = (e: FormEvent) => {
+  const form = edit.form;
+  const startEdit = () => { edit.reset(fromJob(job)); setEditing(true); };
+  /** Saving first shows what will change and waits for a confirmation. */
+  const review = (e: FormEvent) => {
     e.preventDefault();
-    run("save", async () => {
-      const { error } = await supabase.from("jobs").update(toRow(form!)).eq("id", job.id);
-      if (error?.message.includes("jobs_job_no_key")) return `PN ${form!.job_no.trim()} is already used by another shipment. Choose a different one.`;
+    setConfirming(describeChanges(fromJob(job), form, { clients, staff }));
+  };
+  const save = () => run("save", async () => {
+    const { error } = await supabase.from("jobs").update(toRow(form)).eq("id", job.id);
+    setConfirming(null);
+    if (error?.message.includes("jobs_job_no_key")) return `PN ${form.job_no.trim()} is already used by another shipment. Choose a different one.`;
+    if (error) return error.message;
+    setEditing(false);
+  });
+
+  const addNote = (e: FormEvent) => {
+    e.preventDefault();
+    if (!noteText.trim()) return;
+    run("note", async () => {
+      const { error } = await supabase.from("job_notes").insert({ job_id: job.id, note_date: noteDate, body: noteText.trim(), author_id: profile!.id });
       if (error) return error.message;
-      setForm(null);
+      setNoteText("");
+      setNoteDate(today());
+    });
+  };
+  const removeNote = (n: JobNote) => {
+    if (!confirm(`Delete the status note of ${dayLabel(n.note_date)}?`)) return;
+    run("note", async () => {
+      const { error } = await supabase.from("job_notes").delete().eq("id", n.id);
+      return error?.message;
     });
   };
 
@@ -183,45 +213,80 @@ export default function JobFile() {
       <section className="card">
         <div className="row spread">
           <h2>Project details</h2>
-          {editable && !form && <button className="ghost" onClick={() => setForm(fromJob(job))}>Edit</button>}
+          {editable && !editing && <button className="ghost" onClick={startEdit}>Edit</button>}
         </div>
-        {form ? (
-          <form onSubmit={save}>
-            <JobFields form={form} setForm={setForm} clients={clients} staff={staff} lodged={STATUSES.indexOf(job.status) >= STATUSES.indexOf("lodged")} />
+        {editing ? (
+          <form onSubmit={review}>
+            <JobFields history={edit} clients={clients} staff={staff} lodged={STATUSES.indexOf(job.status) >= STATUSES.indexOf("lodged")} />
             <div className="row">
-              <button disabled={!!busy}>Save</button>
-              <button type="button" className="ghost" onClick={() => setForm(null)}>Cancel</button>
+              <button disabled={!!busy}>Save…</button>
+              <button type="button" className="ghost" onClick={() => setEditing(false)}>Cancel</button>
             </div>
           </form>
         ) : (
-          <dl className="details">
-            <dt>PN (project number)</dt><dd>{job.job_no}</dd>
-            <dt>Client</dt><dd>{job.clients?.name}</dd>
-            <dt>Client reference no.</dt><dd>{show(job.client_ref_no)}</dd>
-            <dt>Service</dt><dd>{pretty(job.service_type)}</dd>
-            <dt>BL / AWB no.</dt><dd>{show(job.bl_awb_no)}</dd>
-            <dt>BL release</dt><dd>{job.bl_release_type ? BL_RELEASE_LABEL[job.bl_release_type] : "—"}</dd>
-            <dt>Entry no.</dt><dd>{show(job.entry_no)}</dd>
-            <dt>Ticket no.</dt><dd>{show(job.ticket_no)}</dd>
-            <dt>Entry color</dt>
-            <dd>{job.entry_color ? <span className={"entry-color " + job.entry_color}>{pretty(job.entry_color)}</span> : "—"}</dd>
-            <dt>Entry status</dt><dd>{job.entry_status ? pretty(job.entry_status) : "—"}</dd>
-            <dt>Final SAD sent</dt><dd>{job.final_sad_sent ? "Yes" : "No"}</dd>
-            <dt>SSDT sent</dt><dd>{job.ssdt_sent ? "Yes" : "No"}</dd>
-            <dt>Containers</dt><dd>{job.containers?.length ? job.containers.join(", ") : "—"}</dd>
-            <dt>Vessel / voyage</dt><dd>{show(job.vessel)} / {show(job.voyage)}</dd>
-            <dt>ETA</dt><dd>{show(job.eta)}</dd>
-            <dt>Port of discharge</dt><dd>{show(job.port_of_discharge)}</dd>
-            <dt>Port of destination</dt><dd>{show(job.port_of_destination)}</dd>
-            <dt>Container at yard</dt><dd>{show(dateTime(job.container_at_yard_at))}</dd>
-            <dt>Released</dt><dd>{show(dateTime(job.released_at))}</dd>
-            <dt>Trucker</dt><dd>{show(job.trucker_name)}{job.trucker_plate_no ? ` · plate ${job.trucker_plate_no}` : ""}</dd>
-            <dt>Delivery address</dt><dd className="pre">{show(job.delivery_address)}</dd>
-            <dt>Carrier</dt><dd>{show(job.carrier)}</dd>
-            <dt>Booking no.</dt><dd>{show(job.booking_no)}</dd>
-            <dt>Processor</dt><dd>{job.processor ? job.processor.full_name || job.processor.email : "Unassigned"}</dd>
-            <dt>Notes</dt><dd>{show(job.notes)}</dd>
-          </dl>
+          <div className="detail-groups">
+            <Group title="1. Shipment and client" rows={[
+              ["PN (project number)", job.job_no], ["Client", job.clients?.name], ["Client reference no.", job.client_ref_no],
+              ["Service", pretty(job.service_type)],
+              ["Processor", job.processor ? job.processor.full_name || job.processor.email : "Unassigned"],
+            ]} />
+            <Group title="2. Arrival" rows={[
+              ["Carrier", job.carrier], ["Vessel / voyage", [job.vessel, job.voyage].filter(Boolean).join(" / ") || null],
+              ["BL / AWB no.", job.bl_awb_no], ["Booking no.", job.booking_no], ["ETA", dayLabel(job.eta)],
+              ["Port of discharge", job.port_of_discharge], ["Port of destination", job.port_of_destination],
+              ["Containers", job.containers?.length ? job.containers.join(", ") : null],
+            ]} />
+            <Group title="3. BL release" rows={[
+              ["Release by", job.bl_release_type ? BL_RELEASE_LABEL[job.bl_release_type] : null],
+              ...(job.bl_release_type === "cro" ? [["CRO valid until", dayLabel(job.cro_valid_until)] as Row] : []),
+              ...(job.bl_release_type === "original" ? [["Original BL picked up", dayLabel(job.obl_pickup_date)] as Row,
+                ["Original BL shipping date", dayLabel(job.obl_shipping_date)] as Row] : []),
+              ...(job.bl_release_type === "telex" ? [["Telex released on", dayLabel(job.telex_release_date)] as Row] : []),
+              ...(job.bl_release_type === "seaway" ? [["Seaway bill date", dayLabel(job.telex_release_date)] as Row] : []),
+            ]} />
+            <Group title="4. Entry filing" rows={[
+              ["Entry no.", job.entry_no], ["Ticket no.", job.ticket_no],
+              ["Entry status", job.entry_status ? pretty(job.entry_status) : null],
+              ["Entry color", job.entry_color ? <span className={"entry-color " + job.entry_color}>{pretty(job.entry_color)}</span> : null],
+              ["Final SAD sent", job.final_sad_sent ? `Yes${job.final_sad_sent_date ? `, ${dayLabel(job.final_sad_sent_date)}` : ""}` : "No"],
+              ["SSDT sent", job.ssdt_sent ? `Yes${job.ssdt_sent_date ? `, ${dayLabel(job.ssdt_sent_date)}` : ""}` : "No"],
+            ]} />
+            <Group title="5. Release and delivery" rows={[
+              ["Container at yard", dateTime(job.container_at_yard_at)], ["Released", dateTime(job.released_at)],
+              ["Trucker", job.trucker_name], ["Plate no.", job.trucker_plate_no],
+              ["Delivery address", job.delivery_address ? <span className="pre">{job.delivery_address}</span> : null],
+            ]} />
+            {job.notes && <Group title="6. General notes" rows={[["Notes", <span className="pre">{job.notes}</span>]]} />}
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Daily status report</h2>
+        <form className="note-form" onSubmit={addNote}>
+          <input type="date" aria-label="Date of the update" value={noteDate} max={today()} required
+            onChange={(e) => setNoteDate(e.target.value || today())}
+            onKeyDown={(e) => { if (e.key !== "Tab") e.preventDefault(); }}
+            onClick={(e) => e.currentTarget.showPicker?.()} />
+          <textarea rows={2} placeholder="What happened on this shipment today? e.g. Entry lodged, waiting for assessment."
+            value={noteText} onChange={(e) => setNoteText(e.target.value)} aria-label="Status update" />
+          <button disabled={!!busy || !noteText.trim()}>Add update</button>
+        </form>
+        {notes.length === 0 ? <p className="muted">No status updates yet.</p> : (
+          <ul className="note-log">
+            {notes.map((n, i) => (
+              <li key={n.id}>
+                {(i === 0 || notes[i - 1].note_date !== n.note_date) && <div className="note-day">{dayLabel(n.note_date)}</div>}
+                <div className="note-body">
+                  <span className="pre">{n.body}</span>
+                  <span className="muted small"> · {n.author_name ?? "unknown"}, {new Date(n.created_at).toLocaleTimeString(undefined, { timeStyle: "short" })}</span>
+                  {(n.author_id === profile!.id || role === "owner") && (
+                    <button type="button" className="link danger-text small" onClick={() => removeNote(n)}>Delete</button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 
@@ -335,7 +400,24 @@ export default function JobFile() {
       </section>
 
       {role === "owner" && <button className="danger" disabled={!!busy} onClick={deleteJob}>Delete shipment</button>}
+      {confirming && (
+        <ConfirmChanges title={`Save changes to ${job.job_no}?`} lines={confirming} busy={busy === "save"}
+          onConfirm={save} onCancel={() => setConfirming(null)} />
+      )}
     </>
+  );
+}
+
+type Row = [string, ReactNode];
+/** One numbered group of the project details. Empty values show as a dash. */
+function Group({ title, rows }: { title: string; rows: Row[] }) {
+  return (
+    <div className="detail-group">
+      <h3>{title}</h3>
+      <dl className="details">
+        {rows.map(([k, v]) => <div key={k} className="pair"><dt>{k}</dt><dd>{v == null || v === "" ? "—" : v}</dd></div>)}
+      </dl>
+    </div>
   );
 }
 

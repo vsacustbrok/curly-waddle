@@ -42,12 +42,14 @@ export const prettySource = (source: string) => source.replace(/^[a-z_]+(?=:)/, 
 /** The selectivity colour customs gives an entry once it is lodged. */
 export const ENTRY_COLORS = ["red", "orange", "yellow"] as const;
 export type EntryColor = (typeof ENTRY_COLORS)[number];
-export const ENTRY_STATUSES = ["final", "assessed"] as const;
+export const ENTRY_STATUSES = ["filed", "assessed", "paid"] as const;
 export type EntryStatus = (typeof ENTRY_STATUSES)[number];
 /** How the cargo is released by the shipping line. */
-export const BL_RELEASE_TYPES = ["cro", "telex", "original"] as const;
+export const BL_RELEASE_TYPES = ["cro", "original", "telex", "seaway"] as const;
 export type BlReleaseType = (typeof BL_RELEASE_TYPES)[number];
-export const BL_RELEASE_LABEL: Record<BlReleaseType, string> = { cro: "CRO", telex: "Telex released", original: "Original BL" };
+export const BL_RELEASE_LABEL: Record<BlReleaseType, string> = {
+  cro: "CRO", original: "Original BL", telex: "Telex released", seaway: "Seaway bill",
+};
 /** A stored timestamp in the viewer's local time, e.g. "Nov 12, 2026, 3:05 PM". */
 export const dateTime = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : null;
@@ -65,12 +67,19 @@ export type Job = {
   client_ref_no: string | null; entry_status: EntryStatus | null; final_sad_sent: boolean; ssdt_sent: boolean;
   container_at_yard_at: string | null; trucker_name: string | null; trucker_plate_no: string | null;
   delivery_address: string | null; released_at: string | null; port_of_destination: string | null;
-  bl_release_type: BlReleaseType | null;
+  bl_release_type: BlReleaseType | null; cro_valid_until: string | null; obl_pickup_date: string | null;
+  obl_shipping_date: string | null; telex_release_date: string | null;
+  final_sad_sent_date: string | null; ssdt_sent_date: string | null;
   processor_id: string | null; notes: string | null;
   created_at: string; updated_at: string;
   clients?: { name: string } | null;
   processor?: { full_name: string; email: string | null } | null;
 };
+/** One entry in a shipment's day-to-day status log. */
+export type JobNote = { id: number; job_id: string; note_date: string; body: string; author_id: string | null; author_name: string | null; created_at: string };
+/** A YYYY-MM-DD date as "Nov 13, 2026". */
+export const dayLabel = (d: string | null) =>
+  d ? new Date(d + "T00:00:00").toLocaleDateString(undefined, { dateStyle: "medium" }) : null;
 export type JobDocument = {
   id: string; job_id: string; doc_type: string; file_path: string; file_name: string;
   mime_type: string | null; size_bytes: number | null; uploaded_at: string;

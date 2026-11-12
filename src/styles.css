@@ -143,3 +143,18 @@ dd .entry-color { margin-left: 0; }
 .check-badge.review { color: var(--warn); background: #fff8e1; border-color: #ecd9a0; }
 .check-badge.good { color: var(--ok); background: #e8f5ec; border-color: #b7dcc3; }
 .check-badge.none { color: var(--muted); background: #f4f5f7; border-color: var(--line); }
+fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin: 0 0 12px; }
+legend { font-weight: 600; color: var(--accent); padding: 0 6px; }
+.undo-bar { margin-bottom: 10px; }
+.sent { display: flex; flex-direction: column; gap: 4px; }
+input[type="date"], input[type="datetime-local"] { cursor: pointer; }
+.detail-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px 24px; }
+.detail-group h3 { font-size: .95rem; color: var(--accent); margin: 0 0 6px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.modal-backdrop { position: fixed; inset: 0; background: rgb(20 30 45 / .45); display: grid; place-items: center; padding: 16px; z-index: 20; }
+.modal { width: 100%; max-width: 560px; max-height: 85vh; overflow: auto; margin: 0; }
+ul.changes { margin: 0 0 14px; padding-left: 18px; } ul.changes li { padding: 2px 0; }
+.note-form { display: grid; grid-template-columns: 170px 1fr auto; gap: 8px; align-items: start; margin-bottom: 12px; }
+@media (max-width: 640px) { .note-form { grid-template-columns: 1fr; } }
+ul.note-log { list-style: none; margin: 0; padding: 0; }
+.note-day { font-weight: 600; color: var(--accent); margin: 10px 0 4px; }
+.note-body { padding: 6px 10px; border-left: 3px solid var(--line); margin-bottom: 4px; }

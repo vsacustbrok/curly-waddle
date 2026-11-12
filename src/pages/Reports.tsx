@@ -251,26 +251,58 @@ function MyDailyReport() {
 }
 
 /** Entries lodged in a month: filing date, entry and ticket numbers, status, colour, and SAD / SSDT. */
+type Period = "week" | "month" | "year";
+const p2 = (x: number) => String(x).padStart(2, "0");
+const ymd = (d: Date) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** First and last day of the week (Monday to Sunday), month or year that contains `day`. */
+function bounds(period: Period, day: Date): { from: Date; to: Date; title: string } {
+  const y = day.getFullYear(), m = day.getMonth();
+  if (period === "year") return { from: new Date(y, 0, 1), to: new Date(y, 11, 31), title: String(y) };
+  if (period === "month") return { from: new Date(y, m, 1), to: new Date(y, m + 1, 0), title: day.toLocaleDateString(undefined, { month: "long", year: "numeric" }) };
+  const from = new Date(y, m, day.getDate() - ((day.getDay() + 6) % 7));
+  const to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6);
+  const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return { from, to, title: `Week of ${fmt(from)} – ${fmt(to)}, ${to.getFullYear()}` };
+}
+
 function EntryLodgement() {
-  const now = new Date();
-  const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
+  const [period, setPeriod] = useState<Period>("month");
+  const [anchor, setAnchor] = useState(() => new Date());
   const [jobs, setJobs] = useState<Job[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const [y, m] = month.split("-").map(Number);
-  const first = `${month}-01`;
-  const last = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
+  const { from, to, title } = bounds(period, anchor);
+  const first = ymd(from), last = ymd(to);
   useEffect(() => {
-    supabase.from("jobs")
-      .select("id, job_no, entry_no, entry_filed_date, ticket_no, entry_status, entry_color, final_sad_sent, final_sad_sent_date, ssdt_sent, ssdt_sent_date, status, clients(name)")
-      .gte("entry_filed_date", first).lte("entry_filed_date", last).order("entry_filed_date").order("job_no")
-      .then(({ data, error }) => { setError(error?.message ?? ""); setJobs((data as unknown as Job[]) ?? []); });
+    setLoading(true);
+    fetchAll<Job>((a, b) => supabase.from("jobs")
+      .select("id, job_no, entry_no, entry_filed_date, ticket_no, entry_status, entry_color, lodge_status, final_sad_sent, final_sad_sent_date, ssdt_sent, ssdt_sent_date, status, clients(name)")
+      .gte("entry_filed_date", first).lte("entry_filed_date", last).order("entry_filed_date").order("job_no").range(a, b) as never)
+      .then((rows) => { setError(""); setJobs(rows); setLoading(false); }, (e: Error) => { setError(e.message); setJobs([]); setLoading(false); });
   }, [first, last]);
 
-  const count = (pred: (j: Job) => boolean) => jobs.filter(pred).length;
-  const title = new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  const shift = (n: number) => { const d = new Date(y, m - 1 + n, 1); setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`); };
+  const count = (pred: (j: Job) => boolean, list = jobs) => list.filter(pred).length;
+  const shift = (n: number) => setAnchor((d) => period === "year" ? new Date(d.getFullYear() + n, 0, 1)
+    : period === "month" ? new Date(d.getFullYear(), d.getMonth() + n, 1) : new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7 * n));
+
+  /** Rows of the breakdown: each month of a year, or each day of a week or month. */
+  const breakdown = useMemo(() => {
+    const groups = new Map<string, Job[]>();
+    if (period === "year") for (let i = 0; i < 12; i++) groups.set(`${from.getFullYear()}-${p2(i + 1)}`, []);
+    else for (let d = new Date(from); d <= to; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) groups.set(ymd(d), []);
+    for (const j of jobs) {
+      const k = period === "year" ? j.entry_filed_date!.slice(0, 7) : j.entry_filed_date!;
+      groups.get(k)?.push(j);
+    }
+    return [...groups.entries()].filter(([, list]) => period !== "month" || list.length > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs, period, first]);
+  const label = (k: string) => period === "year" ? `${MONTHS[+k.slice(5, 7) - 1]} ${k.slice(0, 4)}`
+    : new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10)).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
   async function exportXlsx() {
     setBusy(true);
@@ -280,59 +312,95 @@ function EntryLodgement() {
       const d = (v: string | null) => (v ? { value: new Date(v + "T00:00:00Z"), type: Date, format: "yyyy-mm-dd" } : null);
       const cols: [string, number, (j: Job) => unknown][] = [
         ["Filed on", 12, (j) => d(j.entry_filed_date)], ["PN", 16, (j) => t(j.job_no)], ["Client", 30, (j) => t(j.clients?.name)],
-        ["Entry no.", 18, (j) => t(j.entry_no)], ["Ticket no.", 16, (j) => t(j.ticket_no)],
+        ["Entry no.", 18, (j) => t(j.entry_no)], ["Ticket no.", 16, (j) => t(j.ticket_no)], ["Lodge status code", 12, (j) => t(j.lodge_status)],
         ["Entry status", 12, (j) => t(j.entry_status ? pretty(j.entry_status) : null)], ["Entry color", 11, (j) => t(j.entry_color ? pretty(j.entry_color) : null)],
         ["Final SAD sent", 14, (j) => (j.final_sad_sent ? d(j.final_sad_sent_date) ?? t("Yes") : t("No"))],
         ["SSDT sent", 12, (j) => (j.ssdt_sent ? d(j.ssdt_sent_date) ?? t("Yes") : t("No"))], ["Shipment status", 14, (j) => t(STATUS_LABEL[j.status])],
       ];
       const data = [cols.map(([h]) => ({ value: h, fontWeight: "bold" as const })), ...jobs.map((j) => cols.map(([, , g]) => g(j)))];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await writeExcelFile(data as any, { columns: cols.map(([, w]) => ({ width: w })), stickyRowsCount: 1, sheet: "Entries" }).toFile(`VSA entry lodgement ${month}.xlsx`);
+      await writeExcelFile(data as any, { columns: cols.map(([, w]) => ({ width: w })), stickyRowsCount: 1, sheet: "Entries" }).toFile(`VSA entry lodgement ${first} to ${last}.xlsx`);
     } catch (e) {
       setError(`Could not create the spreadsheet: ${(e as Error).message}`);
     }
     setBusy(false);
   }
 
+  const list = (
+    <table>
+      <thead><tr><th>Filed on</th><th>PN</th><th>Client</th><th>Entry no.</th><th>Ticket no.</th><th>Code</th><th>Status</th><th>Color</th><th>Final SAD</th><th>SSDT</th></tr></thead>
+      <tbody>
+        {jobs.map((j) => (
+          <tr key={j.id}>
+            <td className="nowrap">{dayLabel(j.entry_filed_date)}</td>
+            <td><Link to={`/jobs/${j.id}`}>{j.job_no}</Link></td>
+            <td>{j.clients?.name}</td>
+            <td>{j.entry_no}</td>
+            <td>{j.ticket_no}</td>
+            <td>{j.lodge_status}</td>
+            <td>{j.entry_status ? pretty(j.entry_status) : "—"}</td>
+            <td>{j.entry_color ? <span className={"entry-color " + j.entry_color}>{pretty(j.entry_color)}</span> : "—"}</td>
+            <td className="nowrap">{j.final_sad_sent ? dayLabel(j.final_sad_sent_date) ?? "Yes" : "—"}</td>
+            <td className="nowrap">{j.ssdt_sent ? dayLabel(j.ssdt_sent_date) ?? "Yes" : "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
   return (
     <section className="card">
       <div className="row spread">
         <h2>Entry lodgement summary</h2>
-        <div className="row">
-          <button className="ghost small" onClick={() => shift(-1)}>‹ Prev</button>
+        <div className="row wrap">
+          <div className="segmented" role="group" aria-label="View by">
+            {(["week", "month", "year"] as Period[]).map((p) => (
+              <button key={p} type="button" className={period === p ? "small" : "ghost small"} aria-pressed={period === p}
+                onClick={() => setPeriod(p)}>{p === "week" ? "Weekly" : p === "month" ? "Monthly" : "Yearly"}</button>
+            ))}
+          </div>
+          <button className="ghost small" onClick={() => shift(-1)} aria-label="Previous">‹ Prev</button>
           <strong className="cal-title">{title}</strong>
-          <button className="ghost small" onClick={() => shift(1)}>Next ›</button>
+          <button className="ghost small" onClick={() => shift(1)} aria-label="Next">Next ›</button>
+          <button className="ghost small" onClick={() => setAnchor(new Date())}>Today</button>
           <button className="small" disabled={busy || jobs.length === 0} onClick={exportXlsx}>{busy ? "Preparing…" : "Export to Excel"}</button>
         </div>
       </div>
       <p className="muted small">Entries are counted by their entry filing date. Set it in each shipment's project details.</p>
       {error && <p className="error">{error}</p>}
       <div className="row stat-row">
-        <span className="stat"><strong>{jobs.length}</strong> lodged</span>
+        <span className="stat"><strong>{loading ? "…" : jobs.length}</strong> lodged</span>
         {ENTRY_STATUSES.map((st) => <span key={st} className="stat"><strong>{count((j) => j.entry_status === st)}</strong> {pretty(st).toLowerCase()}</span>)}
         {ENTRY_COLORS.map((c) => <span key={c} className={"entry-color " + c}>{count((j) => j.entry_color === c)} {pretty(c)}</span>)}
         <span className="stat"><strong>{count((j) => j.final_sad_sent)}</strong> final SAD sent</span>
         <span className="stat"><strong>{count((j) => j.ssdt_sent)}</strong> SSDT sent</span>
       </div>
-      {jobs.length === 0 ? <p className="muted">No entries with a filing date in {title}.</p> : (
-        <table>
-          <thead><tr><th>Filed on</th><th>PN</th><th>Client</th><th>Entry no.</th><th>Ticket no.</th><th>Status</th><th>Color</th><th>Final SAD</th><th>SSDT</th></tr></thead>
-          <tbody>
-            {jobs.map((j) => (
-              <tr key={j.id}>
-                <td className="nowrap">{dayLabel(j.entry_filed_date)}</td>
-                <td><Link to={`/jobs/${j.id}`}>{j.job_no}</Link></td>
-                <td>{j.clients?.name}</td>
-                <td>{j.entry_no}</td>
-                <td>{j.ticket_no}</td>
-                <td>{j.entry_status ? pretty(j.entry_status) : "—"}</td>
-                <td>{j.entry_color ? <span className={"entry-color " + j.entry_color}>{pretty(j.entry_color)}</span> : "—"}</td>
-                <td className="nowrap">{j.final_sad_sent ? dayLabel(j.final_sad_sent_date) ?? "Yes" : "—"}</td>
-                <td className="nowrap">{j.ssdt_sent ? dayLabel(j.ssdt_sent_date) ?? "Yes" : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {!loading && jobs.length === 0 ? <p className="muted">No entries with a filing date in {title}.</p> : (
+        <>
+          <h3>{period === "year" ? "By month" : "By day"}</h3>
+          <table className="breakdown">
+            <thead><tr><th>{period === "year" ? "Month" : "Day"}</th><th className="num">Lodged</th>
+              {ENTRY_COLORS.map((c) => <th key={c} className="num">{pretty(c)}</th>)}<th className="num">Released or later</th></tr></thead>
+            <tbody>
+              {breakdown.map(([k, l]) => (
+                <tr key={k} className={l.length ? "" : "muted"}>
+                  <td className="nowrap">{period === "year"
+                    ? <button type="button" className="link" disabled={!l.length} onClick={() => { setPeriod("month"); setAnchor(new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, 1)); }}>{label(k)}</button>
+                    : label(k)}</td>
+                  <td className="num"><strong>{l.length}</strong></td>
+                  {ENTRY_COLORS.map((c) => <td key={c} className="num">{count((j) => j.entry_color === c, l) || ""}</td>)}
+                  <td className="num">{count((j) => STATUSES.indexOf(j.status) >= STATUSES.indexOf("released"), l) || ""}</td>
+                </tr>
+              ))}
+              <tr className="total"><td>Total</td><td className="num"><strong>{jobs.length}</strong></td>
+                {ENTRY_COLORS.map((c) => <td key={c} className="num">{count((j) => j.entry_color === c)}</td>)}
+                <td className="num">{count((j) => STATUSES.indexOf(j.status) >= STATUSES.indexOf("released"))}</td></tr>
+            </tbody>
+          </table>
+          {period === "year"
+            ? <details><summary>Show all {jobs.length} entries</summary>{list}</details>
+            : <><h3>Entries</h3>{list}</>}
+        </>
       )}
     </section>
   );

@@ -195,3 +195,6 @@ h3.sub { font-size: 1rem; margin: 18px 0 6px; color: var(--accent); }
 .button-like { display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 8px; background: var(--accent, #0b5cab); color: #fff; cursor: pointer; font-weight: 600; }
 .import-plan, .import-result { margin-top: 1rem; padding: 0.75rem; border: 1px solid var(--line, #d0d7de); border-radius: 8px; }
 .import-plan table { margin: 0.5rem 0; }
+.segmented { display: inline-flex; gap: 4px; }
+table.breakdown { margin-bottom: 12px; }
+table.breakdown tr.total td { border-top: 2px solid var(--line); font-weight: 600; }

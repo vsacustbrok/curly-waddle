@@ -38,7 +38,10 @@ export default function App() {
   return (
     <>
       <header className="topbar">
-        <strong className="brand">VSA Brokerage</strong>
+        <span className="brand">
+          <img src="https://xskvjxbvkgysvwlotjpf.supabase.co/storage/v1/object/public/site-assets/vsacb-logo" alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+          <strong>VSA Customs Brokerage</strong>
+        </span>
         <nav>
           <NavLink to="/" end>Status board</NavLink>
           <NavLink to="/shipments">Shipments</NavLink>

@@ -116,3 +116,20 @@ dl.details { gap: 8px 20px; }
   input:not([type="checkbox"]):not([type="file"]), select { width: 100%; }
 }
 @media (max-width: 640px) { .card:has(table) table { min-width: 560px; } }
+
+/* ---- port photo behind the app ---- */
+body {
+  background:
+    linear-gradient(rgb(244 245 247 / .80), rgb(244 245 247 / .80)),
+    url("https://xskvjxbvkgysvwlotjpf.supabase.co/storage/v1/object/public/site-assets/port-background.webp") center / cover fixed no-repeat,
+    var(--bg);
+}
+.center { background: linear-gradient(rgb(20 40 70 / .35), rgb(20 40 70 / .35)); }
+.center.muted { color: #fff; }
+.column { background: rgb(233 236 240 / .92); }
+main > h1, main > .row > h1 { text-shadow: 0 1px 0 #fff; }
+main > p.muted, main > p.ok, main > p.warn, main > p.error { background: rgb(255 255 255 / .85); padding: 6px 10px; border-radius: 6px; width: fit-content; }
+.brand { display: inline-flex; align-items: center; gap: 8px; }
+.brand img { height: 40px; width: auto; }
+.login-logo { width: 150px; height: auto; align-self: center; }
+.narrow h1 { text-align: center; }

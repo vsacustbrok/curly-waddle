@@ -1,6 +1,6 @@
 // The office's daily lodge summary sheet as CSV: the same columns, in the same order, so an
 // existing summary can be brought into the app and the app's shipments taken back out.
-import type { Job, JobStatus } from "./types";
+import { STATUSES, type Job, type JobStatus } from "./types";
 
 /** The column headings exactly as on the office sheet. The blank one is kept so columns line up. */
 export const LODGE_HEADERS = [
@@ -73,7 +73,10 @@ export function parseSheetDate(raw: string): string {
 export function jobToSheetRow(j: Job): string[] {
   const consignee = [j.clients?.name, j.item_description].filter(Boolean).join(" / ");
   const trucking = [j.trucker_name, j.trucker_plate_no].filter(Boolean).join(" / ");
-  const status = j.lodge_status || (j.entry_status ? j.entry_status.toUpperCase() : "");
+  // The lodge sheet's STATUS code, worked out from the shipment when it was not brought in from the sheet:
+  // F = final SAD sent, S = SSDT sent, P = paid (the shipment has reached the Paid step).
+  const paid = STATUSES.indexOf(j.status === "released" ? "delivered" : j.status) >= STATUSES.indexOf("paid");
+  const status = j.lodge_status || [j.final_sad_sent && "F", j.ssdt_sent && "S", paid && "P"].filter(Boolean).join("/");
   const cells: Record<Key, string> = {
     pro: j.job_no, consignee, bl: j.bl_awb_no ?? "", containers: (j.containers ?? []).join(" "), supplier: j.supplier ?? "",
     dp: j.dp_contract ?? "", entry: j.entry_no ?? "", color: (j.entry_color ?? "").toUpperCase(), status, yard: j.yard ?? "",

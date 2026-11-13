@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { markWords } from "../lib/keywords";
@@ -9,7 +9,7 @@ import {
   type Client, type Job, type JobDocument, type JobNote, type JobStatus, type Profile, type ScanResult, type StatusHistory,
 } from "../lib/types";
 import { partsOf, summarize, summaryRows } from "../lib/shipment";
-import { runScan, uploadDocs } from "../lib/docs";
+import { nameScreenshot, runScan, uploadDocs } from "../lib/docs";
 import JobFields, { ConfirmChanges, describeChanges, emptyJob, findDuplicates, fromJob, today, toRow, useFormHistory } from "./JobFields";
 
 const fmt = (iso: string) => new Date(iso).toLocaleString();
@@ -79,6 +79,25 @@ export default function JobFile() {
     supabase.from("profiles").select("*").in("role", ["owner", "processor"]).then(({ data }) => setStaff((data as Profile[]) ?? []));
   }, [editable]);
 
+  // Registry no.: kept once, in the Documents section.
+  const [registry, setRegistry] = useState("");
+  useEffect(() => { setRegistry(job?.registry_no ?? ""); }, [job?.registry_no]);
+  // A screenshot pasted anywhere on the page (outside a text box) is added as a document.
+  const [dragging, setDragging] = useState(false);
+  const uploadRef = useRef<((files: File[]) => void) | null>(null);
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && t.closest("input, textarea, [contenteditable='true']")) return;
+      const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith("image/") || f.type === "application/pdf");
+      if (!files.length || !uploadRef.current) return;
+      e.preventDefault();
+      uploadRef.current(files.map(nameScreenshot));
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, []);
+
   if (notFound) return <p className="muted">Shipment not found.</p>;
   if (!job) return <p className="muted">Loading…</p>;
 
@@ -144,7 +163,16 @@ export default function JobFile() {
     setFilled(outcome.filled);
   }
 
-  const upload = (files: FileList | null) => {
+  const saveRegistry = (e: FormEvent) => {
+    e.preventDefault();
+    if (!job) return;
+    run("save", async () => {
+      const { error } = await supabase.from("jobs").update({ registry_no: registry.trim() || null }).eq("id", job.id);
+      if (error) throw new Error(error.message);
+      await load();
+    });
+  };
+  const upload = (files: FileList | File[] | null) => {
     if (!files?.length) return;
     run("upload", async () => {
       const { uploaded, problems } = await uploadDocs(job.id, Array.from(files), docType, profile!.id);
@@ -156,6 +184,7 @@ export default function JobFile() {
       return problems.join("\n") || undefined;
     });
   };
+  uploadRef.current = (files) => upload(files);
 
   const view = async (d: JobDocument) => {
     const { data, error } = await supabase.storage.from("job-docs").createSignedUrl(d.file_path, 120);
@@ -255,16 +284,16 @@ export default function JobFile() {
             ]} />
             <Group title="4. Entry filing" rows={[
               ["Entry no.", job.entry_no], ["Entry filed on", dayLabel(job.entry_filed_date)], ["Ticket no.", job.ticket_no],
-              ["Lodge status code", job.lodge_status], ["DP / contract", job.dp_contract],
+              ["Lodge code (lodge sheet)", job.lodge_status], ["DP / contract", job.dp_contract],
               ["Entry status", job.entry_status ? pretty(job.entry_status) : null],
               ["Entry color", job.entry_color ? <span className={"entry-color " + job.entry_color}>{pretty(job.entry_color)}</span> : null],
-              ["Final SAD sent", job.final_sad_sent ? `Yes${job.final_sad_sent_date ? `, ${dayLabel(job.final_sad_sent_date)}` : ""}` : "No"],
-              ["SSDT sent", job.ssdt_sent ? `Yes${job.ssdt_sent_date ? `, ${dayLabel(job.ssdt_sent_date)}` : ""}` : "No"],
+              ["Final SAD sent", job.final_sad_sent ? `Yes${job.final_sad_sent_date ? `, ${dayLabel(job.final_sad_sent_date)}` : ""}` : null],
+              ["SSDT sent", job.ssdt_sent ? `Yes${job.ssdt_sent_date ? `, ${dayLabel(job.ssdt_sent_date)}` : ""}` : null],
             ]} />
             <Group title="5. Gatepass, TABS, release and delivery" rows={[
               ["Gatepass", [job.gatepass_ref, dayLabel(job.gatepass_date)].filter(Boolean).join(", ") ? <span className="kw-gatepass">{[job.gatepass_ref, dayLabel(job.gatepass_date)].filter(Boolean).join(", ")}</span> : null],
               ["TABS booking", [job.tabs_ref, dateTime(job.tabs_at)].filter(Boolean).join(", ") ? <span className="kw-tabs">{[job.tabs_ref, dateTime(job.tabs_at)].filter(Boolean).join(", ")}</span> : null],
-              ["Yard", job.yard], ["Container at yard", dateTime(job.container_at_yard_at)], ["Released", dateTime(job.released_at)],
+              ["Yard", job.container_at_yard_at ? null : job.yard], ["Container at yard", dateTime(job.container_at_yard_at)], ["Released", dateTime(job.released_at)],
               ["Trucker", job.trucker_name], ["Plate no.", job.trucker_plate_no],
               ["Delivery address", job.delivery_address ? <span className="pre">{job.delivery_address}</span> : null],
               ["Empty return due", dayLabel(job.empty_return_due)],
@@ -317,8 +346,17 @@ export default function JobFile() {
         </section>
       )}
 
-      <section className="card">
+      <section className={"card docs-drop" + (dragging ? " dragging" : "")}
+        onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragging(true); } }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); if (editable || role === "dispatcher" || role === "billing") upload(Array.from(e.dataTransfer.files)); }}>
         <h2>Documents</h2>
+        <form className="row wrap registry" onSubmit={saveRegistry}>
+          <label>Registry no.
+            <input value={registry} onChange={(e) => setRegistry(e.target.value)} disabled={!editable} placeholder="e.g. 1234-26" style={{ width: "12em" }} />
+          </label>
+          {editable && registry.trim() !== (job.registry_no ?? "") && <button className="ghost small" disabled={!!busy}>Save</button>}
+        </form>
         <div className="row">
           <select value={docType} onChange={(e) => setDocType(e.target.value)} aria-label="Document type">
             <option value="other">Detect the type automatically</option>
@@ -326,14 +364,14 @@ export default function JobFile() {
           </select>
           <label className={"filepick" + (busy ? " disabled" : "")}>
             + Add documents
-            <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg" disabled={!!busy}
+            <input type="file" multiple accept=".pdf,image/*" disabled={!!busy}
               onChange={(e) => { upload(e.target.files); e.target.value = ""; }} />
           </label>
           {busy === "upload" && <span className="working">Uploading… {elapsed} s</span>}
           {busy === "scan" && <span className="working">Reading the documents… {elapsed} s</span>}
         </div>
         <p className="muted small">
-          PDF, PNG or JPG, up to 10 MB each.
+          PDF or pictures (photos, PNG, JPG, screenshots), up to 10 MB each. Paste a screenshot with Ctrl+V, or drag files onto this box.
           {editable ? " Files are read automatically after upload, and several documents in one PDF are fine." : ""}
         </p>
         {docs.length === 0 ? <p className="muted">No documents uploaded yet.</p> : (
@@ -429,12 +467,15 @@ export default function JobFile() {
 
 type Row = [string, ReactNode];
 /** One numbered group of the project details. Empty values show as a dash. */
+/** One section of the shipment's details. Only what has been filled in is shown, so nothing repeats as an empty line. */
 function Group({ title, rows }: { title: string; rows: Row[] }) {
+  const filled = rows.filter(([, v]) => !(v == null || v === "" || v === false));
   return (
     <div className="detail-group">
       <h3>{title}</h3>
       <dl className="details">
-        {rows.map(([k, v]) => <div key={k} className="pair"><dt>{k}</dt><dd>{v == null || v === "" ? "—" : v}</dd></div>)}
+        {filled.length === 0 ? <div className="pair muted"><dd>Nothing entered yet</dd></div>
+          : filled.map(([k, v]) => <div key={k} className="pair"><dt>{k}</dt><dd>{v}</dd></div>)}
       </dl>
     </div>
   );

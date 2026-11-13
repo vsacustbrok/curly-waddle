@@ -343,14 +343,10 @@ export default function JobFields({ history, clients, staff, lodged = false }: {
         <label>Entry no.<input value={form.entry_no} onChange={set("entry_no")} /></label>
         <label>Entry filed on{date("entry_filed_date")}</label>
         <label>Ticket no.<input value={form.ticket_no} onChange={set("ticket_no")} /></label>
-        <label>Lodge status code<input value={form.lodge_status} onChange={set("lodge_status")} placeholder="e.g. F/S/P" /></label>
         <label>DP / contract<input value={form.dp_contract} onChange={set("dp_contract")} /></label>
-        <label>Entry status
-          <select value={form.entry_status} onChange={set("entry_status")}>
-            <option value="">Not set</option>
-            {ENTRY_STATUSES.map((s) => <option key={s} value={s}>{pretty(s)}</option>)}
-          </select>
-        </label>
+        {/* The board step (Lodged, Assessed, Paid...) is the entry's status, so it is not asked again here.
+            Older shipments keep their lodge-sheet code, shown only when they have one. */}
+        {form.lodge_status && <label>Lodge code (from the lodge sheet)<input value={form.lodge_status} onChange={set("lodge_status")} /></label>}
         <label>Entry color{lodged ? "" : " (after the entry is lodged)"}
           <select value={form.entry_color} onChange={set("entry_color")} disabled={!lodged}>
             <option value="">Not set</option>
@@ -373,7 +369,7 @@ export default function JobFields({ history, clients, staff, lodged = false }: {
         <label className="kw-gatepass-label">Gatepass date{date("gatepass_date")}</label>
         <label className="kw-tabs-label">TABS booking ref. no.<input value={form.tabs_ref} onChange={set("tabs_ref")} /></label>
         <label className="kw-tabs-label">TABS date and time<input type="datetime-local" value={form.tabs_at} onChange={set("tabs_at")} {...pickOnly} /></label>
-        <label>Yard (arrival as written)<input value={form.yard} onChange={set("yard")} placeholder="e.g. YARD 01/05/26 01:22 AM" /></label>
+        {form.yard && !form.container_at_yard_at && <label>Yard (from the lodge sheet)<input value={form.yard} onChange={set("yard")} /></label>}
         <label>Container at yard<input type="datetime-local" value={form.container_at_yard_at} onChange={set("container_at_yard_at")} {...pickOnly} /></label>
         <label>Released<input type="datetime-local" value={form.released_at} onChange={set("released_at")} {...pickOnly} /></label>
         <label>Trucker<input value={form.trucker_name} onChange={chooseTrucker} list="list-trucker_name" placeholder="Type or pick from earlier entries" autoComplete="off" /></label>
@@ -385,13 +381,14 @@ export default function JobFields({ history, clients, staff, lodged = false }: {
       </fieldset>
 
       <fieldset className="grid">
-        <legend>6. Remarks and notes</legend>
-        <label>Remarks<input value={form.lodge_remarks} onChange={set("lodge_remarks")} /></label>
-        <label>Remarks 2<input value={form.lodge_remarks_2} onChange={set("lodge_remarks_2")} /></label>
-        <label className="wide">Note<input value={form.lodge_note} onChange={set("lodge_note")} /></label>
-        <label className="wide">Notes that stay the same for the whole shipment (use the daily status log below for day-to-day updates)
-          <textarea rows={2} value={form.notes} onChange={set("notes")} />
+        <legend>6. Remarks</legend>
+        <label className="wide">Remarks (for day-to-day updates use the daily status report below)
+          <textarea rows={2} value={form.lodge_remarks} onChange={set("lodge_remarks")} />
         </label>
+        {/* Older shipments brought in from the lodge sheet may also hold these; shown only when filled. */}
+        {form.lodge_remarks_2 && <label className="wide">Remarks 2 (from the lodge sheet)<input value={form.lodge_remarks_2} onChange={set("lodge_remarks_2")} /></label>}
+        {form.lodge_note && <label className="wide">Note (from the lodge sheet)<input value={form.lodge_note} onChange={set("lodge_note")} /></label>}
+        {form.notes && <label className="wide">General notes (older)<textarea rows={2} value={form.notes} onChange={set("notes")} /></label>}
       </fieldset>
     </>
   );

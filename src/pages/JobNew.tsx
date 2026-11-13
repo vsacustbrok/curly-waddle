@@ -109,7 +109,7 @@ export default function JobNew() {
         <div className="row">
           <label className={"filepick" + (busy ? " disabled" : "")}>
             {files.length ? "Choose different files" : "Choose documents"}
-            <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg" disabled={busy}
+            <input type="file" multiple accept=".pdf,image/*" disabled={busy}
               onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
           </label>
           <button disabled={busy || files.length === 0 || fileProblems.length > 0} onClick={createFromDocuments}>
@@ -119,7 +119,7 @@ export default function JobNew() {
         {files.length > 0 && !busy && <p className="small">{files.map((f) => f.name).join(", ")}</p>}
         {step && <p className="working">{step} {elapsed} s</p>}
         {fileProblems.map((p) => <p key={p} className="error small">{p}</p>)}
-        <p className="muted small">PDF, PNG or JPG, up to 10 MB each. Several documents scanned into one PDF are fine.</p>
+        <p className="muted small">PDF or pictures (photos, PNG, JPG, screenshots), up to 10 MB each. Several documents scanned into one PDF are fine.</p>
       </section>
 
       <details className="card">

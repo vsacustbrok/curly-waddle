@@ -8,15 +8,45 @@ const MIME_OK = ["application/pdf", "image/png", "image/jpeg"];
 
 /** Why a file cannot be uploaded, or null if it is fine. */
 export function fileProblem(file: File): string | null {
-  if (!MIME_OK.includes(file.type)) return `${file.name}: only PDF, PNG or JPG files are accepted`;
+  if (!MIME_OK.includes(file.type)) return `${file.name}: only PDF files and pictures (PNG, JPG, screenshots) are accepted`;
   if (file.size > MAX_BYTES) return `${file.name}: larger than 10 MB`;
   if (file.size === 0) return `${file.name}: the file is empty`;
   return null;
 }
 
-export async function uploadDocs(jobId: string, files: File[], docType: string, userId: string) {
+/**
+ * Pictures in other formats (WebP, GIF, BMP, HEIC where the browser can open it) become JPG,
+ * the format the document reader and storage take. PDF, PNG and JPG pass through unchanged.
+ */
+export async function toUploadable(file: File): Promise<File> {
+  if (MIME_OK.includes(file.type) || !file.type.startsWith("image/")) return file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    canvas.width = bmp.width; canvas.height = bmp.height;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bmp, 0, 0);
+    const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", 0.9));
+    if (!blob) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch {
+    return file; // the browser cannot open it; fileProblem explains
+  }
+}
+
+/** A pasted screenshot has no useful name; give it one with the date and time. */
+export function nameScreenshot(file: File): File {
+  if (file.name && file.name !== "image.png") return file;
+  const d = new Date(), p = (n: number) => String(n).padStart(2, "0");
+  const ext = file.type === "image/jpeg" ? "jpg" : "png";
+  return new File([file], `Screenshot ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.${ext}`, { type: file.type });
+}
+
+export async function uploadDocs(jobId: string, originals: File[], docType: string, userId: string) {
   const problems: string[] = [];
   let uploaded = 0;
+  const files = await Promise.all(originals.map(toUploadable));
   // Files go up side by side: the wait is for the slowest file, not the sum of them.
   await Promise.all(files.map(async (file) => {
     const problem = fileProblem(file);

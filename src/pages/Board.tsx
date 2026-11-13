@@ -8,7 +8,7 @@ import { STATUSES, STATUS_LABEL, dateTime, pretty, type Job, type Role, type Job
 const FOCUS: Record<Role, JobStatus[]> = {
   owner: [], pending: [],
   processor: ["pre_arrival", "lodged", "assessed", "paid", "gatepass"],
-  dispatcher: ["tabs", "released"],
+  dispatcher: ["tabs", "delivered"],
   billing: ["assessed", "delivered"],
 };
 
@@ -81,7 +81,7 @@ export default function Board() {
       ) : (
         <div className="board">
           {columns.map((s) => {
-            const list = filtered.filter((j) => j.status === s);
+            const list = filtered.filter((j) => (j.status === "released" ? "delivered" : j.status) === s); // Released shows as Released / Delivered
             return (
               <section key={s} className={"column col-" + s + (FOCUS[role].includes(s) ? " focus" : "")}>
                 <h2>{STATUS_LABEL[s]} <span className="count">{list.length}</span></h2>
@@ -91,7 +91,7 @@ export default function Board() {
                     <span>{j.clients?.name}</span>
                     <span className="muted small">{pretty(j.service_type)}{j.bl_awb_no ? ` · ${j.bl_awb_no}` : ""}</span>
                     {j.eta && (
-                      <span className={"small " + (j.eta < today && STATUSES.indexOf(s) < STATUSES.indexOf("released") ? "error" : "muted")}>ETA {j.eta}</span>
+                      <span className={"small " + (j.eta < today && STATUSES.indexOf(s) < STATUSES.indexOf("delivered") ? "error" : "muted")}>ETA {j.eta}</span>
                     )}
                     {s === "gatepass" && j.gatepass_ref && <span className="small kw-gatepass">Gatepass {j.gatepass_ref}</span>}
                     {s === "tabs" && (j.tabs_ref || j.tabs_at) && (

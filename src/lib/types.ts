@@ -2,10 +2,11 @@ export type Role = "owner" | "processor" | "dispatcher" | "billing" | "pending";
 export type JobStatus = "pre_arrival" | "lodged" | "assessed" | "paid" | "gatepass" | "tabs" | "released" | "delivered" | "billed";
 export type ServiceType = "brokerage" | "forwarding" | "trucking";
 
-export const STATUSES: JobStatus[] = ["pre_arrival", "lodged", "assessed", "paid", "gatepass", "tabs", "released", "delivered", "billed"];
+// "released" is kept only so older history still reads; Released and Delivered are one step now.
+export const STATUSES: JobStatus[] = ["pre_arrival", "lodged", "assessed", "paid", "gatepass", "tabs", "delivered", "billed"];
 export const STATUS_LABEL: Record<JobStatus, string> = {
   pre_arrival: "Pre-arrival", lodged: "Lodged", assessed: "Assessed", paid: "Paid", gatepass: "Gatepass", tabs: "TABS",
-  released: "Released", delivered: "Delivered", billed: "Billed",
+  released: "Released", delivered: "Released / Delivered", billed: "Billed",
 };
 export const ROLES: Role[] = ["owner", "processor", "dispatcher", "billing", "pending"];
 

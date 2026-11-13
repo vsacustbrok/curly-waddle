@@ -101,12 +101,12 @@ dl.details { gap: 8px 20px; }
 .badge.status-lodged, .col-lodged h2 { color: #14508c; }
 .badge.status-assessed, .col-assessed h2 { color: #1e7a34; }
 .badge.status-paid, .col-paid h2 { color: #0b6b6b; }
-.badge.status-released, .col-released h2 { color: #8a5a00; }
+.badge.status-released, .col-released h2 { color: #4a3b00; }
 .badge.status-delivered, .col-delivered h2 { color: #4a3b00; }
 .col-delivered h2 { background: #ffe14d; border-radius: 6px; padding: 2px 8px; display: inline-block; }
 .badge.status-billed, .col-billed h2 { color: #1c2430; }
 .badge.status-pre_arrival { background: #eceff2; } .badge.status-assessed { background: #e6f4ea; }
-.badge.status-paid { background: #e0f2f2; } .badge.status-released { background: #fff3d6; }
+.badge.status-paid { background: #e0f2f2; } .badge.status-released { background: #ffe14d; }
 .badge.status-delivered { background: #ffe14d; } .badge.status-billed { background: #e3e6ea; }
 .jobcard { padding: 10px 12px; }
 @media (max-width: 640px) {
@@ -181,7 +181,7 @@ main { padding-bottom: 80px; }
 .cal-item { display: block; font-size: .78rem; padding: 2px 5px; border-radius: 4px; text-decoration: none; color: var(--text); background: #e6eef7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-item.status-billed { background: #e8f5ec; }
 .cal-item.status-delivered { background: #fff3a8; }
-.cal-item.status-released { background: #fff3d6; }
+.cal-item.status-released { background: #fff3a8; }
 @media (max-width: 640px) { .cal { gap: 2px; padding: 4px; } .cal-cell { min-height: 64px; } .cal-item span { display: none; } }
 .activity { background: #f4f7fb; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; }
 .report-text { width: 100%; margin-bottom: 8px; }

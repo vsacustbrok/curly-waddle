@@ -380,7 +380,7 @@ function EntryLodgement() {
           <h3>{period === "year" ? "By month" : "By day"}</h3>
           <table className="breakdown">
             <thead><tr><th>{period === "year" ? "Month" : "Day"}</th><th className="num">Lodged</th>
-              {ENTRY_COLORS.map((c) => <th key={c} className="num">{pretty(c)}</th>)}<th className="num">Released or later</th></tr></thead>
+              {ENTRY_COLORS.map((c) => <th key={c} className="num">{pretty(c)}</th>)}<th className="num">Released / delivered</th></tr></thead>
             <tbody>
               {breakdown.map(([k, l]) => (
                 <tr key={k} className={l.length ? "" : "muted"}>
@@ -389,12 +389,12 @@ function EntryLodgement() {
                     : label(k)}</td>
                   <td className="num"><strong>{l.length}</strong></td>
                   {ENTRY_COLORS.map((c) => <td key={c} className="num">{count((j) => j.entry_color === c, l) || ""}</td>)}
-                  <td className="num">{count((j) => STATUSES.indexOf(j.status) >= STATUSES.indexOf("released"), l) || ""}</td>
+                  <td className="num">{count((j) => STATUSES.indexOf(j.status) >= STATUSES.indexOf("delivered"), l) || ""}</td>
                 </tr>
               ))}
               <tr className="total"><td>Total</td><td className="num"><strong>{jobs.length}</strong></td>
                 {ENTRY_COLORS.map((c) => <td key={c} className="num">{count((j) => j.entry_color === c)}</td>)}
-                <td className="num">{count((j) => STATUSES.indexOf(j.status) >= STATUSES.indexOf("released"))}</td></tr>
+                <td className="num">{count((j) => STATUSES.indexOf(j.status) >= STATUSES.indexOf("delivered"))}</td></tr>
             </tbody>
           </table>
           {period === "year"

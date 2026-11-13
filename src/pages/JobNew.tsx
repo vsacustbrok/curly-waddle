@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { PLACEHOLDER_CLIENT, type Client, type Profile } from "../lib/types";
 import { MAX_FILES, fileProblem, runScan, uploadDocs } from "../lib/docs";
-import JobFields, { ConfirmChanges, describeChanges, emptyJob, toRow, useFormHistory } from "./JobFields";
+import JobFields, { ConfirmChanges, describeChanges, emptyJob, findDuplicates, toRow, useFormHistory } from "./JobFields";
 
 /** The client new shipments sit under until the consignee has been read from the documents. */
 async function placeholderClientId(): Promise<string> {
@@ -24,6 +24,7 @@ export default function JobNew() {
   const history = useFormHistory(emptyJob);
   const form = history.form;
   const [confirming, setConfirming] = useState<string[] | null>(null);
+  const [dupes, setDupes] = useState<string[] | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
@@ -82,6 +83,8 @@ export default function JobNew() {
   function review(e: FormEvent) {
     e.preventDefault();
     setConfirming(describeChanges(emptyJob, form, { clients, staff }).map((l) => l.replace(/: empty → /, ": ")));
+    setDupes(null);
+    findDuplicates(form).then(setDupes, () => setDupes([]));
   }
   async function submit() {
     setBusy(true);
@@ -128,7 +131,7 @@ export default function JobNew() {
         </form>
       </details>
       {confirming && (
-        <ConfirmChanges title="Create this shipment?" lines={confirming} busy={busy} onConfirm={submit} onCancel={() => setConfirming(null)} />
+        <ConfirmChanges title="Create this shipment?" lines={confirming} warnings={dupes} busy={busy} onConfirm={submit} onCancel={() => setConfirming(null)} />
       )}
     </>
   );

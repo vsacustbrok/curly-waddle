@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchAll, supabase } from "../lib/supabase";
+import { matchesSearch, searchText } from "../lib/search";
 import { BL_RELEASE_LABEL, STATUS_LABEL, pretty, type Job } from "../lib/types";
 import { summarize, type DocLike, type Shipment } from "../lib/shipment";
 
@@ -134,13 +135,14 @@ export default function Shipments() {
   }, [period, thisYear]);
 
   const lines = useMemo(() => rows.map(toLine), [rows]);
+  const texts = useMemo(() => lines.map((l) =>
+    searchText(l.job) + " " + searchText([l.s.shipper, l.s.consignee, l.bl, l.vessel, l.s.goods, ...l.containers, ...l.s.invoiceNos])), [lines]);
   const shown = useMemo(() => {
-    const needle = q.trim().toLowerCase();
+    const needle = q.trim();
     if (!needle) return lines;
-    return lines.filter((l) =>
-      [l.job.job_no, l.job.clients?.name, l.s.shipper, l.s.consignee, l.bl, l.job.entry_no, l.job.ticket_no, l.vessel, l.s.goods, l.job.item_description, l.job.supplier, l.job.trucker_plate_no, ...l.containers, ...l.s.invoiceNos]
-        .some((v) => v?.toLowerCase().includes(needle)));
-  }, [lines, q]);
+    // Everything typed into the shipment, plus what was read from its documents.
+    return lines.filter((l, i) => matchesSearch(texts[i], needle));
+  }, [lines, texts, q]);
 
   async function doExport() {
     setExporting(true);

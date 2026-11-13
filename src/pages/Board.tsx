@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { matchesSearch, searchAllYears, searchText, type FoundJob } from "../lib/search";
 import { STATUSES, STATUS_LABEL, dateTime, dayLabel, pretty, type Job, type Role, type JobStatus } from "../lib/types";
 
 // The stages each role acts on, highlighted on their board.
@@ -79,15 +80,33 @@ export default function Board() {
       });
   }, []);
 
+  // Search covers everything typed into a shipment; the database is also searched (all years,
+  // daily status notes included) so nothing typed in is out of reach.
+  const texts = useMemo(() => new Map(jobs.map((j) => [j.id, searchText(j)])), [jobs]);
+  const [found, setFound] = useState<FoundJob[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  useEffect(() => {
+    const query = q.trim();
+    if (query.length < 2) { setFound(null); return; }
+    setSearching(true);
+    let stale = false;
+    const t = setTimeout(() => {
+      searchAllYears(query).then((rows) => { if (!stale) { setFound(rows); setSearching(false); } },
+        () => { if (!stale) { setFound([]); setSearching(false); } });
+    }, 400);
+    return () => { stale = true; clearTimeout(t); };
+  }, [q]);
+  const foundIds = useMemo(() => new Set((found ?? []).map((f) => f.id)), [found]);
   const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
+    const needle = q.trim();
     return jobs.filter((j) => {
       if (mine && j.processor_id !== profile!.id) return false;
       if (!needle) return true;
-      return [j.job_no, j.clients?.name, j.client_ref_no, j.bl_awb_no, j.entry_no, j.ticket_no, j.trucker_plate_no, ...(j.containers ?? [])]
-        .some((v) => v?.toLowerCase().includes(needle));
+      return matchesSearch(texts.get(j.id) ?? "", needle) || foundIds.has(j.id);
     });
-  }, [jobs, q, mine, profile]);
+  }, [jobs, q, mine, profile, texts, foundIds]);
+  const onBoard = useMemo(() => new Set(jobs.map((j) => j.id)), [jobs]);
+  const elsewhere = (found ?? []).filter((f) => !onBoard.has(f.id));
 
   const columns = STATUSES; // every step, Pre-arrival through Billed
   const inColumn = (s: JobStatus) => filtered.filter((j) => (j.status === "released" ? "delivered" : j.status) === s); // Released shows as Released / Delivered
@@ -104,12 +123,37 @@ export default function Board() {
       <div className="row spread">
         <h1>Status board</h1>
         <div className="row">
-          <input placeholder="Search PN, client, ref., BL, container, plate…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input placeholder="Search anything: PN, client, BL, container, entry, plate, note…" aria-label="Search shipments" value={q} onChange={(e) => setQ(e.target.value)} />
           {role === "processor" && (
             <label className="check"><input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> My shipments</label>
           )}
         </div>
       </div>
+      {q.trim().length >= 2 && (
+        <section className="card search-results" aria-live="polite">
+          <strong>Search “{q.trim()}”:</strong> {filtered.length} on the board below
+          {searching ? " · searching all years and daily notes…" : found && (elsewhere.length
+            ? <> · {elsewhere.length}{elsewhere.length >= 200 ? "+" : ""} more in earlier years or other lists:</>
+            : " · nothing more in earlier years or daily notes.")}
+          {!searching && elsewhere.length > 0 && (
+            <div className="table-scroll short">
+              <table className="small">
+                <thead><tr><th>PN</th><th>Client</th><th>Status</th><th>Lodged</th></tr></thead>
+                <tbody>
+                  {elsewhere.map((f) => (
+                    <tr key={f.id}>
+                      <td className="nowrap"><Link to={`/jobs/${f.id}`}>{f.job_no}</Link></td>
+                      <td>{f.clients?.name}</td>
+                      <td><span className={"badge status-" + f.status}>{STATUS_LABEL[f.status as JobStatus] ?? f.status}</span></td>
+                      <td className="nowrap">{dayLabel(f.entry_filed_date)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
       <p className="muted small">{new Date().getFullYear()} shipments and any not lodged yet. Earlier years are under <Link to="/shipments">Shipments</Link>.</p>
       {error && <p className="error">{error}</p>}
       {loading ? <p className="muted">Loading…</p> : jobs.length === 0 ? (

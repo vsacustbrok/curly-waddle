@@ -9,7 +9,7 @@ import {
 } from "../lib/types";
 import { partsOf, summarize, summaryRows } from "../lib/shipment";
 import { runScan, uploadDocs } from "../lib/docs";
-import JobFields, { ConfirmChanges, describeChanges, emptyJob, fromJob, today, toRow, useFormHistory } from "./JobFields";
+import JobFields, { ConfirmChanges, describeChanges, emptyJob, findDuplicates, fromJob, today, toRow, useFormHistory } from "./JobFields";
 
 const fmt = (iso: string) => new Date(iso).toLocaleString();
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
@@ -33,6 +33,7 @@ export default function JobFile() {
   const [editing, setEditing] = useState(false);
   const edit = useFormHistory(emptyJob);
   const [confirming, setConfirming] = useState<string[] | null>(null);
+  const [dupes, setDupes] = useState<string[] | null>(null);
   const [notes, setNotes] = useState<JobNote[]>([]);
   const [noteDate, setNoteDate] = useState(today());
   const [noteText, setNoteText] = useState("");
@@ -106,6 +107,8 @@ export default function JobFile() {
   const review = (e: FormEvent) => {
     e.preventDefault();
     setConfirming(describeChanges(fromJob(job), form, { clients, staff }));
+    setDupes(null);
+    findDuplicates(form, job.id).then(setDupes, () => setDupes([]));
   };
   const save = () => run("save", async () => {
     const { error } = await supabase.from("jobs").update(toRow(form)).eq("id", job.id);
@@ -410,7 +413,7 @@ export default function JobFile() {
 
       {role === "owner" && <button className="danger" disabled={!!busy} onClick={deleteJob}>Delete shipment</button>}
       {confirming && (
-        <ConfirmChanges title={`Save changes to ${job.job_no}?`} lines={confirming} busy={busy === "save"}
+        <ConfirmChanges title={`Save changes to ${job.job_no}?`} lines={confirming} warnings={dupes} busy={busy === "save"}
           onConfirm={save} onCancel={() => setConfirming(null)} />
       )}
     </>

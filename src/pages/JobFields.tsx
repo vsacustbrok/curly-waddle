@@ -374,14 +374,57 @@ export default function JobFields({ history, clients, staff, lodged = false }: {
   );
 }
 
+/**
+ * References on this shipment that another shipment already uses: client reference no., BL,
+ * entry no. and containers. Shown as a warning before saving, so the same shipment is not encoded twice.
+ */
+export async function findDuplicates(f: JobForm, selfId?: string): Promise<string[]> {
+  const exact = (v: string) => v.trim().replace(/[%_\\]/g, (c) => "\\" + c);
+  const others = (q: { neq: (c: string, v: string) => unknown }) => (selfId ? q.neq("id", selfId) : q);
+  const checks: [string, string, PromiseLike<{ data: { job_no: string }[] | null }>][] = [];
+  const add = (label: string, col: string, value: string) => {
+    if (!value.trim()) return;
+    const q = supabase.from("jobs").select("job_no").ilike(col, exact(value)).limit(5);
+    checks.push([label, value.trim(), others(q as never) as unknown as PromiseLike<{ data: { job_no: string }[] | null }>]);
+  };
+  add("Client reference no.", "client_ref_no", f.client_ref_no);
+  add("BL / AWB no.", "bl_awb_no", f.bl_awb_no);
+  add("Entry no.", "entry_no", f.entry_no);
+  const boxes = [...new Set(f.containers.map((c) => c.replace(/\s+/g, "").toUpperCase()).filter(Boolean))];
+  const out: string[] = [];
+  const results = await Promise.all(checks.map(([, , p]) => p));
+  results.forEach(({ data }, i) => {
+    if (data?.length) out.push(`${checks[i][0]} ${checks[i][1]} is already on ${data.map((d) => d.job_no).join(", ")}`);
+  });
+  if (boxes.length) {
+    const q = supabase.from("jobs").select("job_no, containers").overlaps("containers", boxes).limit(10);
+    const { data } = await (others(q as never) as unknown as PromiseLike<{ data: { job_no: string; containers: string[] }[] | null }>);
+    for (const b of boxes) {
+      const on = (data ?? []).filter((d) => d.containers?.includes(b)).map((d) => d.job_no);
+      if (on.length) out.push(`Container ${b} is already on ${on.join(", ")}`);
+    }
+  }
+  return out;
+}
+
 /** A confirmation box listing what is about to be saved. */
-export function ConfirmChanges({ title, lines, busy, onConfirm, onCancel }: {
+export function ConfirmChanges({ title, lines, busy, onConfirm, onCancel, warnings }: {
   title: string; lines: string[]; busy: boolean; onConfirm: () => void; onCancel: () => void;
+  /** Possible double entries found in other shipments; saving is still allowed. */
+  warnings?: string[] | null;
 }) {
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={title}>
       <div className="card modal">
         <h2>{title}</h2>
+        {warnings === null && <p className="muted small">Checking for the same references on other shipments…</p>}
+        {warnings && warnings.length > 0 && (
+          <div className="dup-warning" role="alert">
+            <strong>Possible double entry:</strong>
+            <ul>{warnings.map((w) => <li key={w}>{w}</li>)}</ul>
+            <span className="small">Check it is not the same shipment before saving.</span>
+          </div>
+        )}
         {lines.length === 0 ? <p className="muted">Nothing has changed.</p> : (
           <ul className="changes">{lines.map((l) => <li key={l}>{l}</li>)}</ul>
         )}

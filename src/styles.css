@@ -232,3 +232,9 @@ main:has(> .board), main:has(.board) { max-width: none; }
 .col-dl:disabled { opacity: .4; }
 .wide-modal { max-width: min(1400px, 96vw); }
 .table-scroll { overflow: auto; max-height: 65vh; }
+
+.search-results { padding: 10px 14px; }
+.table-scroll.short { max-height: 260px; margin-top: 6px; }
+
+.dup-warning { background: #fff4e5; border: 1px solid #f0b46a; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; color: #6b3d00; }
+.dup-warning ul { margin: 4px 0; padding-left: 18px; }

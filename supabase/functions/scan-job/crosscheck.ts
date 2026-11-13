@@ -103,7 +103,7 @@ export function nameTokens(name: string | null | undefined): Set<string> {
   const cleaned = name
     .toUpperCase()
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/&/g, " AND ")
     .replace(/[^A-Z0-9 ]+/g, " ");
   return new Set(

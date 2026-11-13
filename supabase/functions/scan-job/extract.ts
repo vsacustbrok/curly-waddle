@@ -305,7 +305,6 @@ export async function extractDocument(
   }
 }
 
-/** Empty strings mean "not on the document"; store them as null. */
 /** The document types the reader may return, as named in the instructions. */
 export const DOC_TYPES = [
   "bill_of_lading", "seaway_bill", "telex_release", "airway_bill", "commercial_invoice", "sales_contract",
@@ -328,6 +327,7 @@ export function documentType(v: unknown): string {
   return "other";
 }
 
+/** Empty strings mean "not on the document"; store them as null. */
 export function blankToNull(v: unknown): unknown {
   if (typeof v === "string") return v.trim() === "" ? null : v;
   if (Array.isArray(v)) return v.map(blankToNull).filter((x) => x !== null);

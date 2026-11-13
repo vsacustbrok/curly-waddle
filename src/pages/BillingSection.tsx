@@ -83,7 +83,13 @@ export default function BillingSection({ job, role, termsDays, onJobSaved }: {
     <section className="card billing">
       <div className="row spread">
         <h2>Billing</h2>
-        {charges.length > 0 && <Link className="button-like" to={`/jobs/${job.id}/soa`}>Statement of account</Link>}
+        {charges.length > 0 && (
+          <div className="row">
+            <Link className="button-like" to={`/jobs/${job.id}/print/billing`}>Print Billing Statement</Link>
+            {charges.some((c) => c.advance) && <Link className="button-like" to={`/jobs/${job.id}/print/soc`}>Print Statement of Charges</Link>}
+            <Link className="ghost-link" to={`/jobs/${job.id}/soa`}>Plain statement</Link>
+          </div>
+        )}
       </div>
       {error && <p className="error">{error}</p>}
 

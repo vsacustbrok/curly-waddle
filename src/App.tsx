@@ -20,6 +20,7 @@ const Calendar = lazy(() => import("./pages/Calendar"));
 const Alerts = lazy(() => import("./pages/Alerts"));
 const Collections = lazy(() => import("./pages/Collections"));
 const Soa = lazy(() => import("./pages/Soa"));
+const FormPrint = lazy(() => import("./pages/FormPrint"));
 
 /** Menu link to the deadlines page, with how many are overdue or due today (refreshed at most once a minute). */
 function AlertsLink() {
@@ -95,6 +96,7 @@ export default function App() {
           <Route path="/jobs/new" element={canEditJobs(role) ? <JobNew /> : <Navigate to="/" />} />
           <Route path="/jobs/:id" element={<JobFile />} />
           <Route path="/jobs/:id/soa" element={<Soa />} />
+          <Route path="/jobs/:id/print/:form" element={<FormPrint />} />
           <Route path="/collections" element={role === "owner" || role === "billing" ? <Collections /> : <Navigate to="/" />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/team" element={role === "owner" ? <Team /> : <Navigate to="/" />} />

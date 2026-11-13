@@ -281,3 +281,28 @@ td.age-1-30 { color: #8a5a00; } td.age-31-60 { color: #b34500; } td.age-61-90, t
 tr.muted-row td { color: var(--muted); }
 .cal-item { margin-bottom: 3px; }
 main:has(.cal) { max-width: none; }
+
+/* Printing on the pre-printed Billing Statement and Statement of Charges (A4) */
+.form-tools { max-width: 210mm; margin: 0 auto 10px; }
+.form-tools .tab { padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: #fff; text-decoration: none; }
+.form-tools .tab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ghost-link { align-self: center; font-size: .9rem; }
+.form-sheet { position: relative; width: 210mm; height: 297mm; margin: 0 auto; background: #fff; box-shadow: 0 2px 12px rgb(0 0 0 / .18); overflow: hidden; }
+.form-bg { position: absolute; left: 0; top: 0; width: 207.8mm; height: 294.9mm; opacity: .45; pointer-events: none; user-select: none; }
+.form-sheet.no-guide .form-bg { display: none; }
+.form-layer { position: absolute; inset: 0; }
+.ff { position: absolute; font-family: Arial, Helvetica, sans-serif; color: #0b2a6b; line-height: 1.15; white-space: nowrap; overflow: hidden; outline: none; min-height: 3.5mm; }
+.ff.wrap { white-space: normal; line-height: 1.2; }
+.ff:hover, .ff:focus { background: rgb(255 235 59 / .35); }
+.ff.total { font-weight: 700; }
+.ff.check-mark { font-weight: 700; font-size: 11pt; width: 4mm; text-align: center; }
+main:has(.form-sheet) { max-width: none; }
+@media print {
+  @page { size: A4; margin: 0; }
+  html, body { width: 210mm; height: 297mm; }
+  main:has(.form-sheet) { padding: 0 !important; margin: 0 !important; }
+  .form-sheet { margin: 0; box-shadow: none; page-break-after: avoid; }
+  .form-bg { display: none; }
+  .form-sheet.with-form .form-bg { display: block; opacity: 1; }
+  .ff { color: #000; background: none !important; }
+}

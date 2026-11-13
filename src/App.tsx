@@ -15,6 +15,8 @@ import Reports from "./pages/Reports";
 import Calendar from "./pages/Calendar";
 import Dictation from "./pages/Dictation";
 import Alerts, { loadAlerts } from "./pages/Alerts";
+import Collections from "./pages/Collections";
+import Soa from "./pages/Soa";
 
 /** Menu link to the deadlines page, with how many are overdue or due today. Refreshed on every page change. */
 function AlertsLink() {
@@ -69,6 +71,7 @@ export default function App() {
           <NavLink to="/calendar">Calendar</NavLink>
           <NavLink to="/reports">Reports</NavLink>
           {canEditJobs(role) && <NavLink to="/jobs/new">New shipment</NavLink>}
+          {(role === "owner" || role === "billing") && <NavLink to="/collections">Collections</NavLink>}
           <NavLink to="/clients">Clients</NavLink>
           {role === "owner" && <NavLink to="/team">Team</NavLink>}
           {role === "owner" && <NavLink to="/security">Security</NavLink>}
@@ -87,6 +90,8 @@ export default function App() {
           <Route path="/reports" element={<Reports />} />
           <Route path="/jobs/new" element={canEditJobs(role) ? <JobNew /> : <Navigate to="/" />} />
           <Route path="/jobs/:id" element={<JobFile />} />
+          <Route path="/jobs/:id/soa" element={<Soa />} />
+          <Route path="/collections" element={role === "owner" || role === "billing" ? <Collections /> : <Navigate to="/" />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/team" element={role === "owner" ? <Team /> : <Navigate to="/" />} />
           <Route path="/security" element={role === "owner" ? <Security /> : <Navigate to="/" />} />

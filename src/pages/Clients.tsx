@@ -3,10 +3,10 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { canEditClients, type Client } from "../lib/types";
 
-const blank = { name: "", tin: "", address: "", contact_person: "", email: "", phone: "" };
+const blank = { name: "", tin: "", address: "", contact_person: "", email: "", phone: "", payment_terms_days: "30" };
 type Form = typeof blank;
 const FIELDS: [keyof Form, string][] = [
-  ["name", "Name"], ["tin", "TIN"], ["contact_person", "Contact person"], ["email", "Email"], ["phone", "Phone"], ["address", "Address"],
+  ["name", "Name"], ["tin", "TIN"], ["contact_person", "Contact person"], ["email", "Email"], ["phone", "Phone"], ["payment_terms_days", "Payment terms (days)"], ["address", "Address"],
 ];
 
 export default function Clients() {
@@ -30,7 +30,10 @@ export default function Clients() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError("");
-    const row = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v.trim() === "" ? null : v.trim()]));
+    const row: Record<string, unknown> = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v.trim() === "" ? null : v.trim()]));
+    const terms = Number(form.payment_terms_days || 30);
+    if (!Number.isInteger(terms) || terms < 0 || terms > 365) { setError("Payment terms must be a whole number of days, 0 to 365."); return; }
+    row.payment_terms_days = terms;
     const res = editing
       ? await supabase.from("clients").update(row).eq("id", editing)
       : await supabase.from("clients").insert(row);
@@ -103,16 +106,16 @@ export default function Clients() {
       <section className="card">
         {clients.length === 0 ? <p className="muted">No clients yet.</p> : (
           <table>
-            <thead><tr><th>Name</th><th>TIN</th><th>Contact</th><th>Email</th><th>Phone</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>TIN</th><th>Contact</th><th>Email</th><th>Phone</th><th>Terms</th><th></th></tr></thead>
             <tbody>
               {clients.map((c) => (
                 <tr key={c.id}>
-                  <td>{c.name}</td><td>{c.tin}</td><td>{c.contact_person}</td><td>{c.email}</td><td>{c.phone}</td>
+                  <td>{c.name}</td><td>{c.tin}</td><td>{c.contact_person}</td><td>{c.email}</td><td>{c.phone}</td><td className="nowrap">{c.payment_terms_days ?? 30} days</td>
                   <td className="right">
                     {canEditClients(role) && (
                       <button className="link" onClick={() => {
                         setEditing(c.id);
-                        setForm({ name: c.name, tin: c.tin ?? "", address: c.address ?? "", contact_person: c.contact_person ?? "", email: c.email ?? "", phone: c.phone ?? "" });
+                        setForm({ name: c.name, tin: c.tin ?? "", address: c.address ?? "", contact_person: c.contact_person ?? "", email: c.email ?? "", phone: c.phone ?? "", payment_terms_days: String(c.payment_terms_days ?? 30) });
                         window.scrollTo(0, 0);
                       }}>Edit</button>
                     )}

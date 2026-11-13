@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { markWords } from "../lib/keywords";
+import BillingSection from "./BillingSection";
 import { useAuth } from "../lib/auth";
 import {
   BL_RELEASE_LABEL, DOC_TYPES, PLACEHOLDER_CLIENT, STATUSES, dateTime, dayLabel, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, pretty, prettySource,
@@ -56,7 +57,7 @@ export default function JobFile() {
 
   const load = useCallback(async () => {
     const [j, d, s, h, nt] = await Promise.all([
-      supabase.from("jobs").select("*, clients(name), processor:profiles!jobs_processor_id_fkey(full_name,email)").eq("id", id!).maybeSingle(),
+      supabase.from("jobs").select("*, clients(name, payment_terms_days), processor:profiles!jobs_processor_id_fkey(full_name,email)").eq("id", id!).maybeSingle(),
       supabase.from("job_documents").select("*").eq("job_id", id!).order("uploaded_at"),
       supabase.from("scan_results").select("*").eq("job_id", id!).order("run_at", { ascending: false }).limit(5),
       supabase.from("job_status_history").select("*").eq("job_id", id!).order("changed_at"),
@@ -400,6 +401,8 @@ export default function JobFile() {
           </>
         )}
       </section>
+
+      <BillingSection job={job} role={role} termsDays={job.clients?.payment_terms_days ?? 30} onJobSaved={load} />
 
       <section className="card">
         <h2>Status history</h2>

@@ -13,7 +13,7 @@ type Audit = {
 const fmt = (iso: string) => new Date(iso).toLocaleString();
 const kb = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
 const TABLE_LABEL: Record<string, string> = {
-  jobs: "Shipment", clients: "Client", profiles: "Team member", job_documents: "Document", invites: "Invitation", job_notes: "Status note",
+  jobs: "Shipment", clients: "Client", profiles: "Team member", job_documents: "Document", invites: "Invitation", job_notes: "Status note", charges: "Charge", payments: "Payment",
 };
 const ACTION_LABEL: Record<string, string> = { INSERT: "Added", UPDATE: "Changed", DELETE: "Deleted" };
 

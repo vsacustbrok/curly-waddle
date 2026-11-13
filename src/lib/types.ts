@@ -59,6 +59,7 @@ export type Profile = { id: string; email: string | null; full_name: string; rol
 export type Client = {
   id: string; name: string; tin: string | null; address: string | null;
   contact_person: string | null; email: string | null; phone: string | null;
+  payment_terms_days?: number;
 };
 export type Job = {
   id: string; job_no: string; client_id: string; service_type: ServiceType; status: JobStatus;
@@ -73,12 +74,13 @@ export type Job = {
   empty_return: string | null; empty_return_date: string | null;
   lodge_remarks: string | null; lodge_remarks_2: string | null; lodge_note: string | null; lodge_status: string | null;
   gatepass_ref: string | null; gatepass_date: string | null; tabs_ref: string | null; tabs_at: string | null;
-  storage_free_until: string | null; demurrage_free_until: string | null; empty_return_due: string | null; cro_valid_until: string | null; obl_pickup_date: string | null;
+  storage_free_until: string | null; demurrage_free_until: string | null; empty_return_due: string | null;
+  soa_no: string | null; billed_on: string | null; cro_valid_until: string | null; obl_pickup_date: string | null;
   obl_shipping_date: string | null; telex_release_date: string | null;
   final_sad_sent_date: string | null; ssdt_sent_date: string | null;
   processor_id: string | null; notes: string | null;
   created_at: string; updated_at: string;
-  clients?: { name: string } | null;
+  clients?: { name: string; payment_terms_days?: number; address?: string | null; tin?: string | null } | null;
   processor?: { full_name: string; email: string | null } | null;
 };
 /** One entry in a shipment's day-to-day status log. */

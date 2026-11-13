@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { STATUSES, STATUS_LABEL, pretty, type Job, type Role, type JobStatus } from "../lib/types";
+import { STATUSES, STATUS_LABEL, dateTime, pretty, type Job, type Role, type JobStatus } from "../lib/types";
 
 // The stages each role acts on, highlighted on their board.
 const FOCUS: Record<Role, JobStatus[]> = {
   owner: [], pending: [],
-  processor: ["pre_arrival", "lodged", "assessed", "paid"],
-  dispatcher: ["released"],
+  processor: ["pre_arrival", "lodged", "assessed", "paid", "gatepass"],
+  dispatcher: ["tabs", "released"],
   billing: ["assessed", "delivered"],
 };
 
@@ -91,7 +91,11 @@ export default function Board() {
                     <span>{j.clients?.name}</span>
                     <span className="muted small">{pretty(j.service_type)}{j.bl_awb_no ? ` · ${j.bl_awb_no}` : ""}</span>
                     {j.eta && (
-                      <span className={"small " + (j.eta < today && STATUSES.indexOf(s) < 4 ? "error" : "muted")}>ETA {j.eta}</span>
+                      <span className={"small " + (j.eta < today && STATUSES.indexOf(s) < STATUSES.indexOf("released") ? "error" : "muted")}>ETA {j.eta}</span>
+                    )}
+                    {s === "gatepass" && j.gatepass_ref && <span className="small kw-gatepass">Gatepass {j.gatepass_ref}</span>}
+                    {s === "tabs" && (j.tabs_ref || j.tabs_at) && (
+                      <span className="small kw-tabs">TABS {j.tabs_ref}{j.tabs_at && ` · ${dateTime(j.tabs_at)}`}</span>
                     )}
                     <CheckBadge scans={j.scan_results} />
                   </Link>

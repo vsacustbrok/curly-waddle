@@ -15,6 +15,7 @@ export type JobForm = {
   container_at_yard_at: string; released_at: string; trucker_name: string; trucker_plate_no: string; delivery_address: string;
   item_description: string; supplier: string; dp_contract: string; yard: string; empty_return: string; empty_return_date: string;
   lodge_remarks: string; lodge_remarks_2: string; lodge_note: string; lodge_status: string;
+  gatepass_ref: string; gatepass_date: string; tabs_ref: string; tabs_at: string;
   notes: string;
 };
 export const emptyJob: JobForm = {
@@ -27,6 +28,7 @@ export const emptyJob: JobForm = {
   container_at_yard_at: "", released_at: "", trucker_name: "", trucker_plate_no: "", delivery_address: "",
   item_description: "", supplier: "", dp_contract: "", yard: "", empty_return: "", empty_return_date: "",
   lodge_remarks: "", lodge_remarks_2: "", lodge_note: "", lodge_status: "",
+  gatepass_ref: "", gatepass_date: "", tabs_ref: "", tabs_at: "",
   notes: "",
 };
 
@@ -62,6 +64,7 @@ export const fromJob = (j: Job): JobForm => ({
   item_description: j.item_description ?? "", supplier: j.supplier ?? "", dp_contract: j.dp_contract ?? "", yard: j.yard ?? "",
   empty_return: j.empty_return ?? "", empty_return_date: j.empty_return_date ?? "",
   lodge_remarks: j.lodge_remarks ?? "", lodge_remarks_2: j.lodge_remarks_2 ?? "", lodge_note: j.lodge_note ?? "", lodge_status: j.lodge_status ?? "",
+  gatepass_ref: j.gatepass_ref ?? "", gatepass_date: j.gatepass_date ?? "", tabs_ref: j.tabs_ref ?? "", tabs_at: toLocalInput(j.tabs_at),
   notes: j.notes ?? "",
 });
 
@@ -91,6 +94,7 @@ export const toRow = (f: JobForm) => {
     item_description: n(f.item_description), supplier: n(f.supplier), dp_contract: n(f.dp_contract), yard: n(f.yard),
     empty_return: n(f.empty_return), empty_return_date: n(f.empty_return_date),
     lodge_remarks: n(f.lodge_remarks), lodge_remarks_2: n(f.lodge_remarks_2), lodge_note: n(f.lodge_note), lodge_status: n(f.lodge_status),
+    gatepass_ref: n(f.gatepass_ref), gatepass_date: n(f.gatepass_date), tabs_ref: n(f.tabs_ref), tabs_at: fromLocalInput(f.tabs_at),
   };
 };
 
@@ -103,6 +107,7 @@ export const FIELD_LABEL: Record<keyof JobForm, string> = {
   obl_pickup_date: "Original BL picked up", obl_shipping_date: "Original BL shipping date", telex_release_date: "Telex / SWB date",
   entry_no: "Entry no.", entry_filed_date: "Entry filed on", ticket_no: "Ticket no.", entry_status: "Entry status", entry_color: "Entry color", lodge_status: "Lodge status code", dp_contract: "DP / contract",
   final_sad_sent: "Final SAD sent", final_sad_sent_date: "Final SAD sent on", ssdt_sent: "SSDT sent", ssdt_sent_date: "SSDT sent on",
+  gatepass_ref: "Gatepass ref. no.", gatepass_date: "Gatepass date", tabs_ref: "TABS booking ref. no.", tabs_at: "TABS date and time",
   container_at_yard_at: "Container at yard", released_at: "Released", trucker_name: "Trucker", trucker_plate_no: "Plate no.",
   delivery_address: "Delivery address", yard: "Yard",
   empty_return: "Empty return", empty_return_date: "Empty return date",
@@ -120,7 +125,7 @@ export function describeChanges(before: JobForm, after: JobForm, names: { client
     if (k === "processor_id") return names.staff.find((p) => p.id === v)?.full_name || names.staff.find((p) => p.id === v)?.email || v;
     if (k === "bl_release_type") return BL_RELEASE_LABEL[v as keyof typeof BL_RELEASE_LABEL] ?? v;
     if (k === "entry_status" || k === "entry_color" || k === "service_type") return pretty(v);
-    if (k === "container_at_yard_at" || k === "released_at") return v.replace("T", " ");
+    if (k === "container_at_yard_at" || k === "released_at" || k === "tabs_at") return v.replace("T", " ");
     return v;
   };
   return (Object.keys(FIELD_LABEL) as (keyof JobForm)[])
@@ -341,7 +346,11 @@ export default function JobFields({ history, clients, staff, lodged = false }: {
       </fieldset>
 
       <fieldset className="grid">
-        <legend>5. Release and delivery</legend>
+        <legend>5. Gatepass, TABS, release and delivery</legend>
+        <label className="kw-gatepass-label">Gatepass ref. no.<input value={form.gatepass_ref} onChange={set("gatepass_ref")} /></label>
+        <label className="kw-gatepass-label">Gatepass date{date("gatepass_date")}</label>
+        <label className="kw-tabs-label">TABS booking ref. no.<input value={form.tabs_ref} onChange={set("tabs_ref")} /></label>
+        <label className="kw-tabs-label">TABS date and time<input type="datetime-local" value={form.tabs_at} onChange={set("tabs_at")} {...pickOnly} /></label>
         <label>Yard (arrival as written)<input value={form.yard} onChange={set("yard")} placeholder="e.g. YARD 01/05/26 01:22 AM" /></label>
         <label>Container at yard<input type="datetime-local" value={form.container_at_yard_at} onChange={set("container_at_yard_at")} {...pickOnly} /></label>
         <label>Released<input type="datetime-local" value={form.released_at} onChange={set("released_at")} {...pickOnly} /></label>

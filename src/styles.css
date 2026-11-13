@@ -207,3 +207,10 @@ table.breakdown tr.total td { border-top: 2px solid var(--line); font-weight: 60
 .kw-gatepass { color: #d35400; }
 .kw-tabs { color: #1565c0; }
 .kw-delivered { color: #4a3b00; background: #ffe14d; border-radius: 3px; padding: 0 3px; }
+
+/* Gatepass (orange) and TABS (blue) */
+.badge.status-gatepass, .col-gatepass h2 { color: #d35400; }
+.badge.status-tabs, .col-tabs h2 { color: #1565c0; }
+.badge.status-gatepass { background: #fdebd9; } .badge.status-tabs { background: #e3effc; }
+.cal-item.status-gatepass { background: #fdebd9; } .cal-item.status-tabs { background: #e3effc; }
+.kw-gatepass-label { color: #d35400; } .kw-tabs-label { color: #1565c0; }

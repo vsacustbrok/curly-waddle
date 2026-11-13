@@ -1,10 +1,10 @@
 export type Role = "owner" | "processor" | "dispatcher" | "billing" | "pending";
-export type JobStatus = "pre_arrival" | "lodged" | "assessed" | "paid" | "released" | "delivered" | "billed";
+export type JobStatus = "pre_arrival" | "lodged" | "assessed" | "paid" | "gatepass" | "tabs" | "released" | "delivered" | "billed";
 export type ServiceType = "brokerage" | "forwarding" | "trucking";
 
-export const STATUSES: JobStatus[] = ["pre_arrival", "lodged", "assessed", "paid", "released", "delivered", "billed"];
+export const STATUSES: JobStatus[] = ["pre_arrival", "lodged", "assessed", "paid", "gatepass", "tabs", "released", "delivered", "billed"];
 export const STATUS_LABEL: Record<JobStatus, string> = {
-  pre_arrival: "Pre-arrival", lodged: "Lodged", assessed: "Assessed", paid: "Paid",
+  pre_arrival: "Pre-arrival", lodged: "Lodged", assessed: "Assessed", paid: "Paid", gatepass: "Gatepass", tabs: "TABS",
   released: "Released", delivered: "Delivered", billed: "Billed",
 };
 export const ROLES: Role[] = ["owner", "processor", "dispatcher", "billing", "pending"];
@@ -70,7 +70,8 @@ export type Job = {
   bl_release_type: BlReleaseType | null; cro_no: string | null; entry_filed_date: string | null;
   item_description: string | null; supplier: string | null; dp_contract: string | null; yard: string | null;
   empty_return: string | null; empty_return_date: string | null;
-  lodge_remarks: string | null; lodge_remarks_2: string | null; lodge_note: string | null; lodge_status: string | null; cro_valid_until: string | null; obl_pickup_date: string | null;
+  lodge_remarks: string | null; lodge_remarks_2: string | null; lodge_note: string | null; lodge_status: string | null;
+  gatepass_ref: string | null; gatepass_date: string | null; tabs_ref: string | null; tabs_at: string | null; cro_valid_until: string | null; obl_pickup_date: string | null;
   obl_shipping_date: string | null; telex_release_date: string | null;
   final_sad_sent_date: string | null; ssdt_sent_date: string | null;
   processor_id: string | null; notes: string | null;

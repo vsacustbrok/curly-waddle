@@ -80,6 +80,8 @@ async function exportXlsx(lines: Line[]) {
     ["Port of loading", 18, (l) => text(l.s.portOfLoading)],
     ["Port of discharge", 18, (l) => text(l.pod)],
     ["Warehouse", 18, (l) => text(l.job.port_of_destination)],
+    ["Gatepass ref. no.", 16, (l) => text(l.job.gatepass_ref)], ["Gatepass date", 12, (l) => date(l.job.gatepass_date)],
+    ["TABS ref. no.", 16, (l) => text(l.job.tabs_ref)], ["TABS date and time", 18, (l) => dateTime(l.job.tabs_at)],
     ["Container at yard", 18, (l) => dateTime(l.job.container_at_yard_at)],
     ["Released", 18, (l) => dateTime(l.job.released_at)],
     ["Trucker", 20, (l) => text(l.job.trucker_name)],

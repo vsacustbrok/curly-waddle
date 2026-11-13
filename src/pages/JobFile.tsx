@@ -254,7 +254,9 @@ export default function JobFile() {
               ["Final SAD sent", job.final_sad_sent ? `Yes${job.final_sad_sent_date ? `, ${dayLabel(job.final_sad_sent_date)}` : ""}` : "No"],
               ["SSDT sent", job.ssdt_sent ? `Yes${job.ssdt_sent_date ? `, ${dayLabel(job.ssdt_sent_date)}` : ""}` : "No"],
             ]} />
-            <Group title="5. Release and delivery" rows={[
+            <Group title="5. Gatepass, TABS, release and delivery" rows={[
+              ["Gatepass", [job.gatepass_ref, dayLabel(job.gatepass_date)].filter(Boolean).join(", ") ? <span className="kw-gatepass">{[job.gatepass_ref, dayLabel(job.gatepass_date)].filter(Boolean).join(", ")}</span> : null],
+              ["TABS booking", [job.tabs_ref, dateTime(job.tabs_at)].filter(Boolean).join(", ") ? <span className="kw-tabs">{[job.tabs_ref, dateTime(job.tabs_at)].filter(Boolean).join(", ")}</span> : null],
               ["Yard", job.yard], ["Container at yard", dateTime(job.container_at_yard_at)], ["Released", dateTime(job.released_at)],
               ["Trucker", job.trucker_name], ["Plate no.", job.trucker_plate_no],
               ["Delivery address", job.delivery_address ? <span className="pre">{job.delivery_address}</span> : null],

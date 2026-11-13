@@ -314,3 +314,35 @@ main:has(.form-sheet) { max-width: none; }
 
 .registry { margin-bottom: 8px; }
 .docs-drop.dragging { outline: 3px dashed var(--accent); outline-offset: -6px; background: #f0f6fd; }
+
+/* ---- Easier reading: larger, bolder type and clearer contrast across the app ---- */
+:root { font-size: 16px; --text: #111a26; --muted: #4f5966; --line: #cfd5dc; }
+body { font-weight: 500; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -.01em; }
+h2 { font-size: 1.18rem; font-weight: 750; }
+h3 { font-weight: 700; }
+.topbar nav a { font-weight: 600; color: #3d4754; }
+.topbar nav a.active { font-weight: 750; }
+/* Form: the label says what to type, in bold; what was typed stands out in the box. */
+label { font-size: .88rem; font-weight: 650; color: #2b3542; gap: 5px; }
+label.check { font-weight: 600; }
+input, select, textarea { font-weight: 600; font-size: .98rem; padding: 9px 11px; border: 1.5px solid #c3cad3; border-radius: 8px; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgb(20 80 140 / .15); }
+input::placeholder, textarea::placeholder { font-weight: 500; color: #8a939e; }
+button { font-weight: 700; border-radius: 8px; padding: 8px 16px; }
+button.small { padding: 4px 10px; }
+fieldset { border: 1.5px solid var(--line); border-radius: 10px; padding: 16px 18px 12px; margin: 0 0 16px; background: #fbfcfd; }
+legend { font-weight: 800; font-size: 1rem; color: var(--accent); padding: 0 8px; }
+.grid { gap: 14px 16px; }
+/* Details: the label quiet, the value bold */
+dl.details dt { font-size: .86rem; font-weight: 600; color: var(--muted); }
+dl.details dd { font-weight: 700; }
+.detail-group h3 { font-size: .95rem; font-weight: 800; color: var(--accent); margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 1.5px solid var(--line); }
+/* Tables */
+table th { font-weight: 750; color: #2b3542; }
+table td { font-weight: 550; }
+.jobcard strong { font-weight: 800; }
+.card { border-radius: 12px; padding: 18px 20px; border-color: var(--line); box-shadow: 0 1px 3px rgb(16 24 40 / .06); }
+.small { font-size: .85rem; }
+.muted { color: var(--muted); }
+.topbar nav { gap: 12px; } .topbar nav a { font-size: .95rem; }

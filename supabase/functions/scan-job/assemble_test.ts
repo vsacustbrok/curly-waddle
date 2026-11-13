@@ -54,12 +54,14 @@ Deno.test("jobPatch fills only empty fields and takes them from the transport do
   const empty = { bl_awb_no: null, booking_no: "", vessel: null, voyage: null, port_of_discharge: null, containers: [], eta: "2026-01-01", carrier: "x" };
   assertEquals(jobPatch(empty, inputs), {
     bl_awb_no: "MEDUPB734499", vessel: "VICKY B", voyage: "0114B", port_of_discharge: "Manila North", containers: ["MEDU9827902"],
+    item_description: "Frozen chicken middle joint wings",
   });
   const partly = { ...empty, voyage: "TYPED-BY-HAND", containers: ["ABCD1234567"] };
   const p = jobPatch(partly, inputs);
   assert(!("voyage" in p) && !("containers" in p) && p.vessel === "VICKY B");
-  // an invoice alone never supplies the BL number
-  assertEquals(jobPatch(empty, toDocInputs([{ id: "i", doc_type: "other", file_name: "i.pdf", extracted: { parts: [inv] } }])), {});
+  // an invoice alone never supplies the BL number (only, when it has one, the item description)
+  const fromInvoice = jobPatch(empty, toDocInputs([{ id: "i", doc_type: "other", file_name: "i.pdf", extracted: { parts: [inv] } }]));
+  assert(!("bl_awb_no" in fromInvoice) && !("vessel" in fromInvoice) && !("containers" in fromInvoice));
 });
 
 Deno.test("consignee and company matching", () => {

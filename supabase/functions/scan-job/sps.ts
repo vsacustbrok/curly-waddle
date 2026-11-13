@@ -3,7 +3,7 @@
 import { descTokens, nameSimilarity, toKg, type DocInput, type Extracted, type Issue, type Match } from "./crosscheck.ts";
 
 export const SPS_TYPE = "sps_import_clearance";
-const TRANSPORT = ["bill_of_lading", "airway_bill"];
+const TRANSPORT = ["bill_of_lading", "seaway_bill", "telex_release", "airway_bill"];
 const NAME_MATCH = 0.6;
 /** The shipment weight may differ from the SPS quantity by at most 3%. Beyond that the SPS must be cancelled or re-applied. */
 const WEIGHT_TOLERANCE = 0.03;

@@ -55,6 +55,8 @@ const FIELD_LABELS: Record<string, string> = {
   voyage: "Voyage",
   port_of_discharge: "Port of discharge",
   containers: "Containers",
+  item_description: "Item description",
+  bl_release_type: "BL release",
   eta: "ETA",
   carrier: "Carrier",
   client_id: "Client",
@@ -95,7 +97,7 @@ Deno.serve(async (req) => {
 
   const { data: job, error: jobErr } = await admin
     .from("jobs")
-    .select("id, job_no, client_id, bl_awb_no, booking_no, containers, vessel, voyage, port_of_discharge, eta, carrier, clients(name)")
+    .select("id, job_no, client_id, bl_awb_no, booking_no, containers, vessel, voyage, port_of_discharge, eta, carrier, item_description, bl_release_type, clients(name)")
     .eq("id", body.job_id)
     .maybeSingle();
   if (jobErr) return json({ error: jobErr.message }, 500);
@@ -255,6 +257,7 @@ Deno.serve(async (req) => {
       voyage: job.voyage,
       port_of_discharge: job.port_of_discharge,
       client_name: clientName === PLACEHOLDER_CLIENT ? null : clientName,
+      item_description: job.item_description ?? null,
     },
     inputs,
   );

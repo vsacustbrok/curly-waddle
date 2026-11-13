@@ -5,7 +5,7 @@ import { markWords } from "../lib/keywords";
 import BillingSection from "./BillingSection";
 import { useAuth } from "../lib/auth";
 import {
-  BL_RELEASE_LABEL, DOC_TYPES, PLACEHOLDER_CLIENT, STATUSES, dateTime, dayLabel, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, pretty, prettySource,
+  BL_RELEASE_LABEL, DOC_GROUPS, PLACEHOLDER_CLIENT, STATUSES, dateTime, dayLabel, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, pretty, prettySource,
   type Client, type Job, type JobDocument, type JobNote, type JobStatus, type Profile, type ScanResult, type StatusHistory,
 } from "../lib/types";
 import { partsOf, summarize, summaryRows } from "../lib/shipment";
@@ -220,7 +220,11 @@ export default function JobFile() {
 
   const next = allowedNextStatuses(role, job.status);
   const latest = scans[0];
-  const summary = summaryRows(summarize(docs));
+  // What the documents add to the project details: their own rows only, nothing already shown above.
+  const summary = summaryRows(summarize(docs)).filter(([k, v]) =>
+    !["BL / AWB no.", "Vessel / voyage", "Port of discharge", "Containers"].includes(k)
+    && !(k === "Goods" && job && job.item_description && v.trim().toUpperCase() === job.item_description.trim().toUpperCase())
+    && !(k === "Consignee" && job?.clients?.name && v.trim().toUpperCase() === job.clients.name.trim().toUpperCase()));
   const unassigned = job.clients?.name === PLACEHOLDER_CLIENT;
 
   return (
@@ -338,8 +342,8 @@ export default function JobFile() {
 
       {summary.length > 0 && (
         <section className="card">
-          <h2>Shipment summary</h2>
-          <p className="muted small">Read from the documents. Check against the originals before filing.</p>
+          <h2>Also read from the documents</h2>
+          <p className="muted small">Details the documents add to the project details above. Check against the originals before filing.</p>
           <dl className="details">
             {summary.map(([k, v]) => <div key={k} className="pair"><dt>{k}</dt><dd>{v}</dd></div>)}
           </dl>
@@ -360,7 +364,9 @@ export default function JobFile() {
         <div className="row">
           <select value={docType} onChange={(e) => setDocType(e.target.value)} aria-label="Document type">
             <option value="other">Detect the type automatically</option>
-            {DOC_TYPES.filter((t) => t !== "other").map((t) => <option key={t} value={t}>{pretty(t)}</option>)}
+            {DOC_GROUPS.map(([group, types]) => (
+              <optgroup key={group} label={group}>{types.map((t) => <option key={t} value={t}>{pretty(t)}</option>)}</optgroup>
+            ))}
           </select>
           <label className={"filepick" + (busy ? " disabled" : "")}>
             + Add documents

@@ -5,8 +5,8 @@
 // something to look at rather than declare the documents wrong.
 import { descTokens, nameSimilarity, toKg, type DocInput, type Extracted, type Issue, type Match, type Party } from "./crosscheck.ts";
 
-const TRANSPORT = ["bill_of_lading", "airway_bill"];
-const SHIPPING = [...TRANSPORT, "commercial_invoice", "packing_list"];
+const TRANSPORT = ["bill_of_lading", "seaway_bill", "telex_release", "airway_bill"];
+const SHIPPING = [...TRANSPORT, "commercial_invoice", "sales_contract", "purchase_order", "packing_list"];
 const SPS = "sps_import_clearance";
 const NAME_MATCH = 0.6;
 

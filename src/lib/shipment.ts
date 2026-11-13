@@ -4,8 +4,8 @@ type Fields = Record<string, unknown>;
 export type DocLike = { doc_type: string; extracted: Record<string, unknown> | null };
 export type Part = { type: string; fields: Fields };
 
-const TRANSPORT = ["bill_of_lading", "airway_bill"];
-const CORE = [...TRANSPORT, "commercial_invoice", "packing_list"];
+const TRANSPORT = ["bill_of_lading", "seaway_bill", "telex_release", "airway_bill"];
+const CORE = [...TRANSPORT, "commercial_invoice", "sales_contract", "purchase_order", "packing_list"];
 const SPS = "sps_import_clearance";
 const isoDate = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 

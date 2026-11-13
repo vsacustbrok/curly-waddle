@@ -24,14 +24,9 @@ const party = {
 const DOC_SCHEMA = {
   type: "object",
   properties: {
-    doc_type_detected: {
-      type: "string",
-      enum: [
-        "bill_of_lading", "airway_bill", "commercial_invoice", "packing_list", "sps_import_clearance", "arrival_notice", "permit",
-        "entry", "assessment", "payment_proof", "release", "delivery_receipt",
-        "billing_statement", "other",
-      ],
-    },
+    // A plain string (an enum costs schema size); the allowed names are in the instructions, and
+    // anything else becomes "other" in documentType().
+    doc_type_detected: str,
     document_number: str,
     bl_awb_number: str,
     booking_number: str,
@@ -112,6 +107,18 @@ A file may hold one document or several bound together (for example a bill of la
 
 Transcribe exactly what the document shows. Do not infer, normalise or correct values, and do not copy a value from one field into another. When a text field is not on the document, return an empty string; for a missing number return null; for a missing list return an empty array. The brokerage cross-checks these values between documents, so a guessed value is worse than a null.
 
+Document types: set doc_type_detected to exactly one of these names: bill_of_lading, seaway_bill, telex_release, airway_bill, commercial_invoice, sales_contract, purchase_order, packing_list, payment_proof, sps_import_clearance, arrival_notice, permit, entry, assessment, release, delivery_receipt, other.
+- bill_of_lading: an original or copy bill of lading (B/L, "Bill of Lading", negotiable).
+- seaway_bill: a Sea Waybill or Express Bill of Lading ("Sea Waybill", "Seaway Bill", "Non-negotiable", "Express B/L"), which needs no original for release.
+- telex_release: a bill of lading marked "TELEX RELEASE(D)", "SURRENDERED" or "ORIGINAL BL SURRENDERED", or a carrier's telex release message for a bill of lading. Fill its bill of lading fields the same way.
+- airway_bill: a master or house Air Waybill (AWB / HAWB).
+- commercial_invoice: an invoice for the goods (commercial, proforma or final invoice).
+- sales_contract: a sales contract, sales confirmation or proforma contract between seller and buyer.
+- purchase_order: a purchase order (PO) issued by the buyer.
+- packing_list: a packing list or weight list.
+- payment_proof: proof of payment: bank remittance or telegraphic transfer (TT) advice, deposit slip, official receipt, payment confirmation.
+For contracts and purchase orders, document_number is the contract or PO number, goods_description is the goods described, and line_items, currency and invoice_total are filled as for an invoice (invoice_total = the contract or order total). For proof of payment, document_number is the transaction or receipt reference, invoice_total is the amount paid and currency its currency.
+
 Field guidance:
 - bl_awb_number: the master or house Bill of Lading number, or the Air Waybill number. On an invoice or packing list, fill it only if a BL/AWB reference is printed.
 - container_numbers: every container number, as printed (4 letters + 7 digits).
@@ -187,7 +194,8 @@ const pdfSource = (bytes: Uint8Array): FileSource => ({
 /** Read every document in one file (or one slice of a file) in a single call. */
 async function readWhole(client: Anthropic, opts: ExtractOptions, source: FileSource, text: string) {
   const r = await ask(client, opts, { system: SYSTEM, schema: EXTRACTION_SCHEMA, source, text, maxTokens: 16000 });
-  const parts = (blankToNull(r.json) as { documents?: Extracted[] }).documents ?? [];
+  const parts = ((blankToNull(r.json) as { documents?: Extracted[] }).documents ?? [])
+    .map((p) => ({ ...p, doc_type_detected: documentType(p.doc_type_detected) }));
   return { ...r, parts };
 }
 
@@ -298,6 +306,28 @@ export async function extractDocument(
 }
 
 /** Empty strings mean "not on the document"; store them as null. */
+/** The document types the reader may return, as named in the instructions. */
+export const DOC_TYPES = [
+  "bill_of_lading", "seaway_bill", "telex_release", "airway_bill", "commercial_invoice", "sales_contract",
+  "purchase_order", "packing_list", "payment_proof", "sps_import_clearance", "arrival_notice", "permit",
+  "entry", "assessment", "release", "delivery_receipt", "other",
+];
+/** The reader's answer as one of DOC_TYPES ("Sea Waybill" → seaway_bill); anything unknown is "other". */
+export function documentType(v: unknown): string {
+  const t = String(v ?? "").trim().toLowerCase().replace(/[^a-z]+/g, "_").replace(/^_|_$/g, "");
+  if (DOC_TYPES.includes(t)) return t;
+  if (/sea_?way/.test(t)) return "seaway_bill";
+  if (/telex|surrender/.test(t)) return "telex_release";
+  if (/air_?way|awb/.test(t)) return "airway_bill";
+  if (/bill_of_lading|^b_?l$/.test(t)) return "bill_of_lading";
+  if (/invoice/.test(t)) return "commercial_invoice";
+  if (/contract/.test(t)) return "sales_contract";
+  if (/purchase|^po$/.test(t)) return "purchase_order";
+  if (/packing/.test(t)) return "packing_list";
+  if (/payment|remittance|receipt_of_payment/.test(t)) return "payment_proof";
+  return "other";
+}
+
 export function blankToNull(v: unknown): unknown {
   if (typeof v === "string") return v.trim() === "" ? null : v;
   if (Array.isArray(v)) return v.map(blankToNull).filter((x) => x !== null);

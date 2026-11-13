@@ -2,7 +2,11 @@
 // into values for the job record. No I/O here, so everything is unit-tested.
 import { nameTokens, normContainer, type DocInput, type Extracted } from "./crosscheck.ts";
 
-export const CORE_TYPES = ["bill_of_lading", "airway_bill", "commercial_invoice", "packing_list"];
+/** Transport documents: any of these is "the bill of lading" for the checks. */
+export const TRANSPORT_TYPES = ["bill_of_lading", "seaway_bill", "telex_release", "airway_bill"];
+/** Commercial documents whose goods, parties and amounts are compared with the transport document. */
+export const COMMERCIAL_TYPES = ["commercial_invoice", "sales_contract", "purchase_order", "packing_list"];
+export const CORE_TYPES = [...TRANSPORT_TYPES, ...COMMERCIAL_TYPES];
 /** Documents that take part in the checks: the shipping documents plus SPS import clearances. */
 const CHECKED_TYPES = [...CORE_TYPES, "sps_import_clearance", "arrival_notice"];
 const isoDate = (v: unknown): string | null => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) ? v : null);
@@ -13,7 +17,7 @@ const BL_PREFIX_CARRIER: Record<string, string> = {
   ONEY: "ONE (Ocean Network Express)", OOLU: "OOCL", YMLU: "Yang Ming", ZIMU: "ZIM", HDMU: "HMM", WHLC: "Wan Hai",
   SITC: "SITC", APLU: "APL", SMLM: "SM Line", KMTC: "KMTC",
 };
-const TRANSPORT = ["bill_of_lading", "airway_bill"];
+const TRANSPORT = TRANSPORT_TYPES;
 /** Client that new shipments sit under until a consignee has been read. Keep in sync with src/lib/types.ts. */
 export const PLACEHOLDER_CLIENT = "Unassigned (to be confirmed)";
 
@@ -78,6 +82,8 @@ export type JobFields = {
   containers: string[] | null;
   eta: string | null;
   carrier: string | null;
+  item_description?: string | null;
+  bl_release_type?: string | null;
 };
 
 /** Where to look for the ETA and carrier: the arrival notice first, then the transport document, then the rest. */
@@ -118,6 +124,12 @@ export function jobPatch(job: JobFields, docs: DocInput[]): Partial<JobFields> {
   fill("eta", etaOf(docs)?.date);
   const blNo = (first(docs, (e) => e.bl_awb_number, TRANSPORT) ?? job.bl_awb_no ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   fill("carrier", first(docs, (e) => e.carrier_name, ["arrival_notice", ...TRANSPORT]) ?? BL_PREFIX_CARRIER[blNo.slice(0, 4)]);
+  // The goods as the transport document describes them, else the invoice's.
+  fill("item_description", first(docs, (e) => e.goods_description, TRANSPORT) ?? first(docs, (e) => e.goods_description, ["commercial_invoice"]));
+  // A telex-released BL or a sea waybill also tells how the BL is released.
+  if ("bl_release_type" in job) {
+    fill("bl_release_type", docs.some((d) => d.doc_type === "telex_release") ? "telex" : docs.some((d) => d.doc_type === "seaway_bill") ? "seaway" : null);
+  }
   return patch as Partial<JobFields>;
 }
 

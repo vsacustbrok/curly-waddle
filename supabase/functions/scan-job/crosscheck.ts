@@ -68,6 +68,8 @@ export type JobInput = {
   voyage: string | null;
   port_of_discharge: string | null;
   client_name: string | null;
+  /** The item description typed in the project details, compared with every document's goods. */
+  item_description?: string | null;
 };
 
 export type Severity = "error" | "warning";
@@ -191,7 +193,7 @@ export function descTokens(s: string | null | undefined): Set<string> {
 
 // ---------- the checks ----------
 
-const TRANSPORT_DOCS = new Set(["bill_of_lading", "airway_bill"]);
+const TRANSPORT_DOCS = new Set(["bill_of_lading", "seaway_bill", "telex_release", "airway_bill"]);
 const NAME_MATCH = 0.6;
 const WEIGHT_TOLERANCE = 0.005; // 0.5 %
 const MONEY_TOLERANCE = 0.01;
@@ -466,7 +468,7 @@ export function crossCheck(job: JobInput, docs: DocInput[]): CrossCheckResult {
       [d.extracted!.goods_description, ...(d.extracted!.line_items ?? []).map((l) => l.description)]
         .filter(Boolean)
         .join(" ");
-    const commercial = [...invoices, ...packingLists];
+    const commercial = [...invoices, ...packingLists, ...withData.filter((d) => d.doc_type === "sales_contract" || d.doc_type === "purchase_order")];
     for (const t of transport) {
       const tt = descTokens(t.extracted!.goods_description);
       if (tt.size === 0) continue;
@@ -492,6 +494,33 @@ export function crossCheck(job: JobInput, docs: DocInput[]): CrossCheckResult {
             value: [...tt].filter((x) => ct.has(x)).slice(0, 8).join(" "),
             sources: [label(t), label(c)],
           });
+        }
+      }
+    }
+  }
+
+  // --- item description in the project details vs the goods on every shipping document ---
+  {
+    const it = descTokens(job.item_description);
+    if (it.size > 0) {
+      const describe = (d: DocInput) =>
+        [d.extracted!.goods_description, ...(d.extracted!.line_items ?? []).map((l) => l.description)].filter(Boolean).join(" ");
+      const shippingDocs = withData.filter((d) => TRANSPORT_DOCS.has(d.doc_type)
+        || ["commercial_invoice", "packing_list", "sales_contract", "purchase_order"].includes(d.doc_type));
+      for (const d of shippingDocs) {
+        const dt = descTokens(describe(d));
+        if (dt.size === 0) continue;
+        let inter = 0;
+        for (const tok of it) if (dt.has(tok)) inter++;
+        if (inter / Math.min(it.size, dt.size) < 0.2) {
+          issues.push({
+            severity: "warning",
+            check: "item_description_match",
+            message: `The item description in the project details does not match the goods on ${d.file_name}. Confirm the item, or correct the project details.`,
+            values: [{ source: "job: item description", value: job.item_description }, { source: label(d), value: describe(d).slice(0, 300) }],
+          });
+        } else {
+          matches.push({ check: "item_description_match", value: [...it].filter((x) => dt.has(x)).slice(0, 8).join(" "), sources: ["job: item description", label(d)] });
         }
       }
     }

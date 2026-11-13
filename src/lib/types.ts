@@ -11,16 +11,33 @@ export const STATUS_LABEL: Record<JobStatus, string> = {
 export const ROLES: Role[] = ["owner", "processor", "dispatcher", "billing", "pending"];
 
 export const DOC_TYPES = [
-  "bill_of_lading", "airway_bill", "commercial_invoice", "packing_list", "sps_import_clearance", "arrival_notice", "permit", "entry",
-  "assessment", "payment_proof", "release", "delivery_receipt", "billing_statement", "other",
+  "bill_of_lading", "seaway_bill", "telex_release", "airway_bill",
+  "commercial_invoice", "sales_contract", "purchase_order", "packing_list", "payment_proof",
+  "sps_import_clearance", "permit", "arrival_notice", "entry", "assessment", "release", "delivery_receipt",
+  "billing_statement", "other",
 ] as const;
+/** The document types offered when uploading, in groups, each once. (Billing is done in the Billing section.) */
+export const DOC_GROUPS: [string, string[]][] = [
+  ["Shipping documents", ["bill_of_lading", "seaway_bill", "telex_release", "airway_bill"]],
+  ["Commercial documents", ["commercial_invoice", "sales_contract", "purchase_order", "packing_list", "payment_proof"]],
+  ["Permits, customs and release", ["sps_import_clearance", "permit", "arrival_notice", "entry", "assessment", "release", "delivery_receipt"]],
+];
+/** Document types as the office calls them. */
+export const DOC_LABEL: Record<string, string> = {
+  bill_of_lading: "Bill of lading", seaway_bill: "Seaway bill (SWB)", telex_release: "Telex release bill of lading",
+  airway_bill: "Airway bill", commercial_invoice: "Commercial invoice", sales_contract: "Sales contract",
+  purchase_order: "Purchase order", packing_list: "Packing list", payment_proof: "Proof of payment",
+  sps_import_clearance: "SPS import clearance", permit: "Permit", arrival_notice: "Arrival notice", entry: "Entry",
+  assessment: "Assessment", release: "Release", delivery_receipt: "Delivery receipt", billing_statement: "Billing statement", other: "Other",
+};
 /** Client that new shipments sit under until a consignee has been read. Keep in sync with scan-job/assemble.ts. */
 export const PLACEHOLDER_CLIENT = "Unassigned (to be confirmed)";
 export const pretty = (s: string) =>
-  s === "sps_import_clearance" ? "SPS import clearance" : s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+  DOC_LABEL[s] ?? s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
 /** Plain names for the checks, shown instead of their internal codes. */
 const CHECK_LABEL: Record<string, string> = {
+  item_description_match: "Item description vs documents",
   shipper_match: "Shipper name", consignee_match: "Consignee name", consignee_vs_client: "Consignee and client",
   bl_number_match: "BL / AWB number", containers_match: "Container numbers", container_check_digit: "Container number looks mistyped",
   gross_weight_match: "Gross weight", net_weight_match: "Net weight", net_vs_gross: "Net weight above gross weight",

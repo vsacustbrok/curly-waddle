@@ -271,3 +271,13 @@ td.age-1-30 { color: #8a5a00; } td.age-31-60 { color: #b34500; } td.age-61-90, t
   main { padding: 0; max-width: none; }
   .soa { margin: 0; border: none; box-shadow: none; padding: 0; }
 }
+
+/* Arrival calendar details */
+.cal-item { display: flex; flex-direction: column; gap: 0; line-height: 1.25; }
+.cal-item .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-cell[role="button"] { cursor: pointer; }
+.cal-cell.picked { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cal-count { float: right; font-size: .7rem; font-weight: 700; background: var(--accent); color: #fff; border-radius: 9px; padding: 0 6px; }
+tr.muted-row td { color: var(--muted); }
+.cal-item { margin-bottom: 3px; }
+main:has(.cal) { max-width: none; }

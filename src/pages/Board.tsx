@@ -32,7 +32,6 @@ export default function Board() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [mine, setMine] = useState(false);
-  const [showBilled, setShowBilled] = useState(false);
 
   useEffect(() => {
     // The board is for this year's work: shipments lodged this year, or not lodged yet.
@@ -59,7 +58,7 @@ export default function Board() {
     });
   }, [jobs, q, mine, profile]);
 
-  const columns = showBilled ? STATUSES : STATUSES.filter((s) => s !== "billed");
+  const columns = STATUSES; // every step, Pre-arrival through Billed
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -71,7 +70,6 @@ export default function Board() {
           {role === "processor" && (
             <label className="check"><input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> My shipments</label>
           )}
-          <label className="check"><input type="checkbox" checked={showBilled} onChange={(e) => setShowBilled(e.target.checked)} /> Show billed</label>
         </div>
       </div>
       <p className="muted small">{new Date().getFullYear()} shipments and any not lodged yet. Earlier years are under <Link to="/shipments">Shipments</Link>.</p>

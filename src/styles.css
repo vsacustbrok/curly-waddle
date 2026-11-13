@@ -214,3 +214,11 @@ table.breakdown tr.total td { border-top: 2px solid var(--line); font-weight: 60
 .badge.status-gatepass { background: #fdebd9; } .badge.status-tabs { background: #e3effc; }
 .cal-item.status-gatepass { background: #fdebd9; } .cal-item.status-tabs { background: #e3effc; }
 .kw-gatepass-label { color: #d35400; } .kw-tabs-label { color: #1565c0; }
+
+/* Status board: use the whole screen width so every column, up to Billed, is in view */
+main:has(> .board), main:has(.board) { max-width: none; }
+.board { gap: 8px; }
+.column { flex: 1 1 0; min-width: 150px; }
+.column h2 { white-space: normal; }
+.col-delivered h2 { display: block; }
+.board .jobcard { padding: 7px 8px; overflow-wrap: anywhere; }

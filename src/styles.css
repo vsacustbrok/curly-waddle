@@ -222,3 +222,13 @@ main:has(> .board), main:has(.board) { max-width: none; }
 .column h2 { white-space: normal; }
 .col-delivered h2 { display: block; }
 .board .jobcard { padding: 7px 8px; overflow-wrap: anywhere; }
+
+/* Board column headings open a list; the arrow downloads Excel */
+.col-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 4px; }
+.col-head h2 { flex: 1; min-width: 0; }
+.col-title { all: unset; cursor: pointer; display: inline; }
+.col-title:hover, .col-title:focus-visible { text-decoration: underline; }
+.col-dl { padding: 1px 7px; font-size: .8rem; line-height: 1.4; background: #fff; color: var(--text); border: 1px solid var(--line); border-radius: 5px; }
+.col-dl:disabled { opacity: .4; }
+.wide-modal { max-width: min(1400px, 96vw); }
+.table-scroll { overflow: auto; max-height: 65vh; }

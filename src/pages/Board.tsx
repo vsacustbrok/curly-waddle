@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { STATUSES, STATUS_LABEL, dateTime, pretty, type Job, type Role, type JobStatus } from "../lib/types";
+import { STATUSES, STATUS_LABEL, dateTime, dayLabel, pretty, type Job, type Role, type JobStatus } from "../lib/types";
 
 // The stages each role acts on, highlighted on their board.
 const FOCUS: Record<Role, JobStatus[]> = {
@@ -24,6 +24,35 @@ function CheckBadge({ scans }: { scans?: Scan[] }) {
   return <span className="check-badge good">Documents OK</span>;
 }
 
+/** One column of the shipment list and of the Excel file: heading, Excel width, value. */
+type Col = [string, number, (j: BoardJob) => string | null | undefined];
+const COLS: Col[] = [
+  ["PN", 16, (j) => j.job_no], ["Client", 26, (j) => j.clients?.name], ["Client ref. no.", 14, (j) => j.client_ref_no],
+  ["Item", 30, (j) => j.item_description], ["Supplier", 24, (j) => j.supplier], ["BL / AWB", 20, (j) => j.bl_awb_no],
+  ["Containers", 26, (j) => (j.containers ?? []).join(" ")], ["Vessel", 18, (j) => j.vessel], ["ETA", 12, (j) => j.eta],
+  ["Entry no.", 14, (j) => j.entry_no], ["Entry filed on", 12, (j) => j.entry_filed_date], ["Color", 9, (j) => (j.entry_color ? pretty(j.entry_color) : null)],
+  ["Lodge code", 10, (j) => j.lodge_status], ["Ticket no.", 16, (j) => j.ticket_no], ["CRO no.", 14, (j) => j.cro_no],
+  ["Gatepass ref. no.", 16, (j) => j.gatepass_ref], ["Gatepass date", 12, (j) => j.gatepass_date],
+  ["TABS ref. no.", 16, (j) => j.tabs_ref], ["TABS date and time", 18, (j) => dateTime(j.tabs_at)],
+  ["Yard", 22, (j) => j.yard], ["Trucker", 16, (j) => j.trucker_name], ["Plate no.", 11, (j) => j.trucker_plate_no],
+  ["Delivery address", 30, (j) => j.delivery_address], ["Warehouse", 18, (j) => j.port_of_destination],
+  ["Processor", 18, (j) => j.processor?.full_name || j.processor?.email], ["Remarks", 30, (j) => j.lodge_remarks], ["Note", 30, (j) => j.lodge_note],
+];
+const fileLabel = (s: JobStatus) => STATUS_LABEL[s].replace(/\s*\/\s*/g, " and ");
+
+/** The shipments of one column as an Excel file, ready to hand to a processor. */
+async function downloadColumn(s: JobStatus, list: BoardJob[]) {
+  const { default: writeExcelFile } = await import("write-excel-file/browser");
+  const data = [
+    COLS.map(([h]) => ({ value: h, fontWeight: "bold" as const })),
+    ...list.map((j) => COLS.map(([, , get]) => { const v = get(j); return v ? { value: v, type: String } : null; })),
+  ];
+  const stamp = new Date().toISOString().slice(0, 10);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await writeExcelFile(data as any, { columns: COLS.map(([, width]) => ({ width })), stickyRowsCount: 1, sheet: fileLabel(s).slice(0, 30) })
+    .toFile(`VSA ${fileLabel(s)} shipments ${stamp}.xlsx`);
+}
+
 export default function Board() {
   const { profile } = useAuth();
   const role = profile!.role;
@@ -32,6 +61,8 @@ export default function Board() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [mine, setMine] = useState(false);
+  const [open, setOpen] = useState<JobStatus | null>(null);
+  const [downloading, setDownloading] = useState<JobStatus | null>(null);
 
   useEffect(() => {
     // The board is for this year's work: shipments lodged this year, or not lodged yet.
@@ -59,6 +90,13 @@ export default function Board() {
   }, [jobs, q, mine, profile]);
 
   const columns = STATUSES; // every step, Pre-arrival through Billed
+  const inColumn = (s: JobStatus) => filtered.filter((j) => (j.status === "released" ? "delivered" : j.status) === s); // Released shows as Released / Delivered
+  async function download(s: JobStatus) {
+    setDownloading(s); setError("");
+    try { await downloadColumn(s, inColumn(s)); } catch (e) { setError(`Could not create the spreadsheet: ${(e as Error).message}`); }
+    setDownloading(null);
+  }
+  const openList = open ? inColumn(open) : [];
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -79,10 +117,16 @@ export default function Board() {
       ) : (
         <div className="board">
           {columns.map((s) => {
-            const list = filtered.filter((j) => (j.status === "released" ? "delivered" : j.status) === s); // Released shows as Released / Delivered
+            const list = inColumn(s);
             return (
               <section key={s} className={"column col-" + s + (FOCUS[role].includes(s) ? " focus" : "")}>
-                <h2>{STATUS_LABEL[s]} <span className="count">{list.length}</span></h2>
+                <div className="col-head">
+                  <h2><button type="button" className="col-title" onClick={() => setOpen(s)} title={`See all ${STATUS_LABEL[s]} shipments as a list`}>
+                    {STATUS_LABEL[s]} <span className="count">{list.length}</span>
+                  </button></h2>
+                  <button type="button" className="col-dl" disabled={!list.length || downloading === s} onClick={() => download(s)}
+                    aria-label={`Download ${STATUS_LABEL[s]} shipments as Excel`} title="Download as Excel">{downloading === s ? "…" : "⬇"}</button>
+                </div>
                 {list.map((j) => (
                   <Link key={j.id} to={`/jobs/${j.id}`} className="jobcard">
                     <strong>{j.job_no}{j.entry_color && <span className={"entry-color " + j.entry_color}>{pretty(j.entry_color)}</span>}</strong>
@@ -101,6 +145,47 @@ export default function Board() {
               </section>
             );
           })}
+        </div>
+      )}
+      {open && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={`${STATUS_LABEL[open]} shipments`} onClick={() => setOpen(null)}>
+          <div className="card modal wide-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="row spread">
+              <h2 className={"col-" + open + "-title"}>{STATUS_LABEL[open]}: {openList.length} shipment{openList.length === 1 ? "" : "s"}</h2>
+              <div className="row">
+                <button type="button" disabled={!openList.length || downloading === open} onClick={() => download(open)}>
+                  {downloading === open ? "Preparing…" : "Download Excel"}</button>
+                <button type="button" className="ghost" onClick={() => setOpen(null)}>Close</button>
+              </div>
+            </div>
+            {q || mine ? <p className="muted small">Only shipments matching the search{mine ? " and “My shipments”" : ""} are listed.</p> : null}
+            {openList.length === 0 ? <p className="muted">No shipments here.</p> : (
+              <div className="table-scroll">
+                <table className="wide-table small">
+                  <thead><tr><th>PN</th><th>Client</th><th>Item</th><th>BL / AWB</th><th>Containers</th><th>Entry no.</th><th>Filed</th><th>Color</th>
+                    <th>Gatepass</th><th>TABS</th><th>Processor</th><th>Remarks</th></tr></thead>
+                  <tbody>
+                    {openList.map((j) => (
+                      <tr key={j.id}>
+                        <td className="nowrap"><Link to={`/jobs/${j.id}`}>{j.job_no}</Link></td>
+                        <td>{j.clients?.name}</td>
+                        <td className="clip" title={j.item_description ?? ""}>{j.item_description}</td>
+                        <td>{j.bl_awb_no}</td>
+                        <td>{(j.containers ?? []).join(" ")}</td>
+                        <td className="nowrap">{j.entry_no}</td>
+                        <td className="nowrap">{dayLabel(j.entry_filed_date)}</td>
+                        <td>{j.entry_color && <span className={"entry-color " + j.entry_color}>{pretty(j.entry_color)}</span>}</td>
+                        <td className="kw-gatepass">{[j.gatepass_ref, dayLabel(j.gatepass_date)].filter(Boolean).join(", ")}</td>
+                        <td className="kw-tabs">{[j.tabs_ref, dateTime(j.tabs_at)].filter(Boolean).join(", ")}</td>
+                        <td>{j.processor?.full_name || j.processor?.email}</td>
+                        <td className="clip" title={j.lodge_remarks ?? ""}>{j.lodge_remarks}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </>

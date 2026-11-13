@@ -43,13 +43,56 @@ const COLS: Col[] = [
 const fileLabel = (s: JobStatus) => STATUS_LABEL[s].replace(/\s*\/\s*/g, " and ");
 
 /** The shipments of one column as an Excel file, ready to hand to a processor. */
+/**
+ * Gatepass summary, laid out like the office's gatepass sheet: one row per container.
+ * Dates as MM/DD/YYYY and times as MM/DD/YYYY HH:MM:SS, the way the sheet writes them.
+ */
+const p2 = (n: number) => String(n).padStart(2, "0");
+const sheetDay = (d: string | null | undefined) => (d ? `${d.slice(5, 7)}/${d.slice(8, 10)}/${d.slice(0, 4)}` : "");
+const sheetTime = (iso: string | null | undefined) => {
+  if (!iso) return "";
+  const t = new Date(iso);
+  return `${p2(t.getMonth() + 1)}/${p2(t.getDate())}/${t.getFullYear()} ${p2(t.getHours())}:${p2(t.getMinutes())}:${p2(t.getSeconds())}`;
+};
+type GateRow = { job: BoardJob; container: string };
+const GATEPASS_COLS: [string, number, (r: GateRow) => string][] = [
+  ["CONTAINER", 16, (r) => r.container],
+  ["DELIVERY", 30, (r) => [r.job.delivery_address, r.job.entry_color?.toUpperCase()].filter(Boolean).join(" - ")],
+  ["SHIPPING LINE", 16, (r) => (r.job.carrier ?? "").toUpperCase()],
+  ["CONTAINER SIZE", 14, (r) => r.job.container_size ?? ""],
+  ["CONSIGNEE", 26, (r) => r.job.clients?.name ?? ""],
+  ["DEMURRAGE", 13, (r) => sheetDay(r.job.demurrage_free_until)],
+  ["STORAGE", 13, (r) => sheetDay(r.job.storage_free_until)],
+  ["ELECTRIC", 20, (r) => (r.job.reefer === false ? "DRY" : sheetTime(r.job.electric_until))],
+  ["TRUCKER", 16, (r) => r.job.trucker_name ?? ""],
+  ["PLATE NO.", 12, (r) => r.job.trucker_plate_no ?? ""],
+  ["TABS BOOKING", 22, (r) => [r.job.tabs_ref, sheetTime(r.job.tabs_at)].filter(Boolean).join(" ")],
+  ["RELEASE DATE/TIME", 20, (r) => sheetTime(r.job.released_at)],
+];
+const gateRows = (list: BoardJob[]): GateRow[] =>
+  list.flatMap((job) => (job.containers?.length ? job.containers : [""]).map((container) => ({ job, container })));
+
 async function downloadColumn(s: JobStatus, list: BoardJob[]) {
   const { default: writeExcelFile } = await import("write-excel-file/browser");
+  const stamp = new Date().toISOString().slice(0, 10);
+  if (s === "gatepass") {
+    const head = { fontWeight: "bold" as const, color: "#FFFFFF", backgroundColor: "#2E5E4E", align: "center" as const, alignVertical: "center" as const, height: 24 };
+    const data = [
+      GATEPASS_COLS.map(([h]) => ({ value: h, ...head })),
+      ...gateRows(list).map((r) => GATEPASS_COLS.map(([, , get]) => {
+        const v = get(r);
+        return { value: v, type: String, align: "center" as const, fontWeight: "bold" as const, borderColor: "#BFBFBF", borderStyle: "thin" as const };
+      })),
+    ];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await writeExcelFile(data as any, { columns: GATEPASS_COLS.map(([, width]) => ({ width })), stickyRowsCount: 1, sheet: "Gatepass" })
+      .toFile(`VSA Gatepass ${stamp}.xlsx`);
+    return;
+  }
   const data = [
     COLS.map(([h]) => ({ value: h, fontWeight: "bold" as const })),
     ...list.map((j) => COLS.map(([, , get]) => { const v = get(j); return v ? { value: v, type: String } : null; })),
   ];
-  const stamp = new Date().toISOString().slice(0, 10);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await writeExcelFile(data as any, { columns: COLS.map(([, width]) => ({ width })), stickyRowsCount: 1, sheet: fileLabel(s).slice(0, 30) })
     .toFile(`VSA ${fileLabel(s)} shipments ${stamp}.xlsx`);
@@ -63,6 +106,7 @@ const BOARD_FIELDS = [
   "ticket_no", "cro_no", "cro_valid_until", "storage_free_until", "demurrage_free_until", "gatepass_ref", "gatepass_date",
   "tabs_ref", "tabs_at", "yard", "trucker_name", "trucker_plate_no", "delivery_address", "port_of_destination",
   "empty_return_due", "empty_return_date", "lodge_remarks", "lodge_note",
+  "container_size", "reefer", "electric_until", "released_at",
 ].join(", ") + ", clients(name), processor:profiles!jobs_processor_id_fkey(full_name,email), scan_results(error_count, warning_count, run_at)";
 
 export default function Board() {
@@ -218,7 +262,22 @@ export default function Board() {
               </div>
             </div>
             {q || mine ? <p className="muted small">Only shipments matching the search{mine ? " and “My shipments”" : ""} are listed.</p> : null}
-            {openList.length === 0 ? <p className="muted">No shipments here.</p> : (
+            {openList.length === 0 ? <p className="muted">No shipments here.</p> : open === "gatepass" ? (
+              <div className="table-scroll">
+                <table className="wide-table small gatepass-table">
+                  <thead><tr>{GATEPASS_COLS.map(([h]) => <th key={h}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {gateRows(openList).map((r) => (
+                      <tr key={r.job.id + r.container}>
+                        {GATEPASS_COLS.map(([h, , get], i) => (
+                          <td key={h} className="nowrap">{i === 0 ? <Link to={`/jobs/${r.job.id}`}>{get(r) || r.job.job_no}</Link> : get(r)}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
               <div className="table-scroll">
                 <table className="wide-table small">
                   <thead><tr><th>PN</th><th>Client</th><th>Item</th><th>BL / AWB</th><th>Containers</th><th>Entry no.</th><th>Filed</th><th>Color</th>

@@ -17,6 +17,7 @@ export type JobForm = {
   lodge_remarks: string; lodge_remarks_2: string; lodge_note: string; lodge_status: string;
   gatepass_ref: string; gatepass_date: string; tabs_ref: string; tabs_at: string;
   storage_free_until: string; demurrage_free_until: string; empty_return_due: string;
+  container_size: string; reefer: string; electric_until: string;
   notes: string;
 };
 export const emptyJob: JobForm = {
@@ -31,6 +32,7 @@ export const emptyJob: JobForm = {
   lodge_remarks: "", lodge_remarks_2: "", lodge_note: "", lodge_status: "",
   gatepass_ref: "", gatepass_date: "", tabs_ref: "", tabs_at: "",
   storage_free_until: "", demurrage_free_until: "", empty_return_due: "",
+  container_size: "", reefer: "", electric_until: "",
   notes: "",
 };
 
@@ -68,6 +70,7 @@ export const fromJob = (j: Job): JobForm => ({
   lodge_remarks: j.lodge_remarks ?? "", lodge_remarks_2: j.lodge_remarks_2 ?? "", lodge_note: j.lodge_note ?? "", lodge_status: j.lodge_status ?? "",
   gatepass_ref: j.gatepass_ref ?? "", gatepass_date: j.gatepass_date ?? "", tabs_ref: j.tabs_ref ?? "", tabs_at: toLocalInput(j.tabs_at),
   storage_free_until: j.storage_free_until ?? "", demurrage_free_until: j.demurrage_free_until ?? "", empty_return_due: j.empty_return_due ?? "",
+  container_size: j.container_size ?? "", reefer: j.reefer == null ? "" : j.reefer ? "reefer" : "dry", electric_until: toLocalInput(j.electric_until),
   notes: j.notes ?? "",
 });
 
@@ -99,6 +102,8 @@ export const toRow = (f: JobForm) => {
     lodge_remarks: n(f.lodge_remarks), lodge_remarks_2: n(f.lodge_remarks_2), lodge_note: n(f.lodge_note), lodge_status: n(f.lodge_status),
     gatepass_ref: n(f.gatepass_ref), gatepass_date: n(f.gatepass_date), tabs_ref: n(f.tabs_ref), tabs_at: fromLocalInput(f.tabs_at),
     storage_free_until: n(f.storage_free_until), demurrage_free_until: n(f.demurrage_free_until), empty_return_due: n(f.empty_return_due),
+    container_size: n(f.container_size), reefer: f.reefer === "" ? null : f.reefer === "reefer",
+    electric_until: f.reefer === "reefer" ? fromLocalInput(f.electric_until) : null,
   };
 };
 
@@ -113,6 +118,7 @@ export const FIELD_LABEL: Record<keyof JobForm, string> = {
   final_sad_sent: "Final SAD sent", final_sad_sent_date: "Final SAD sent on", ssdt_sent: "SSDT sent", ssdt_sent_date: "SSDT sent on",
   gatepass_ref: "Gatepass ref. no.", gatepass_date: "Gatepass date", tabs_ref: "TABS booking ref. no.", tabs_at: "TABS date and time",
   storage_free_until: "Storage free until", demurrage_free_until: "Demurrage free until", empty_return_due: "Empty return due",
+  container_size: "Container size", reefer: "Reefer or dry", electric_until: "Electric until",
   container_at_yard_at: "Container at yard", released_at: "Released", trucker_name: "Trucker", trucker_plate_no: "Plate no.",
   delivery_address: "Delivery address", yard: "Yard",
   empty_return: "Empty return", empty_return_date: "Empty returned on",
@@ -130,7 +136,7 @@ export function describeChanges(before: JobForm, after: JobForm, names: { client
     if (k === "processor_id") return names.staff.find((p) => p.id === v)?.full_name || names.staff.find((p) => p.id === v)?.email || v;
     if (k === "bl_release_type") return BL_RELEASE_LABEL[v as keyof typeof BL_RELEASE_LABEL] ?? v;
     if (k === "entry_status" || k === "entry_color" || k === "service_type") return pretty(v);
-    if (k === "container_at_yard_at" || k === "released_at" || k === "tabs_at") return v.replace("T", " ");
+    if (k === "container_at_yard_at" || k === "released_at" || k === "tabs_at" || k === "electric_until") return v.replace("T", " ");
     return v;
   };
   return (Object.keys(FIELD_LABEL) as (keyof JobForm)[])
@@ -162,10 +168,10 @@ export function useFormHistory(initial: JobForm) {
 }
 export type FormHistory = ReturnType<typeof useFormHistory>;
 
-type Pick = { supplier: string | null; empty_return: string | null; carrier: string | null; vessel: string | null; port_of_discharge: string | null; port_of_destination: string | null;
+type Pick = { container_size: string | null; supplier: string | null; empty_return: string | null; carrier: string | null; vessel: string | null; port_of_discharge: string | null; port_of_destination: string | null;
   trucker_name: string | null; trucker_plate_no: string | null; delivery_address: string | null; client_id: string };
 export type Suggestions = { lists: Record<string, string[]>; plateFor: Map<string, string>; addressesFor: Map<string, string[]> };
-const SUGGESTED = ["supplier", "empty_return", "carrier", "vessel", "port_of_discharge", "port_of_destination", "trucker_name", "trucker_plate_no", "delivery_address"] as const;
+const SUGGESTED = ["container_size", "supplier", "empty_return", "carrier", "vessel", "port_of_discharge", "port_of_destination", "trucker_name", "trucker_plate_no", "delivery_address"] as const;
 
 /** Earlier values typed on other shipments, newest first, so they can be picked instead of typed again. */
 export function useSuggestions(): Suggestions {
@@ -303,6 +309,15 @@ export default function JobFields({ history, clients, staff, lodged = false }: {
             </div>
           ))}
           <button type="button" className="ghost small" onClick={() => setForm({ ...form, containers: [...form.containers, ""] })}>+ Add container</button>
+          <div className="row wrap">
+            <label>Container size{pick("container_size", "e.g. 40")}</label>
+            <label>Reefer or dry
+              <select value={form.reefer} onChange={set("reefer")}>
+                <option value="">Not set</option><option value="reefer">Reefer</option><option value="dry">Dry</option>
+              </select>
+            </label>
+            {form.reefer === "reefer" && <label>Electric until<input type="datetime-local" value={form.electric_until} onChange={set("electric_until")} {...pickOnly} /></label>}
+          </div>
         </div>
       </fieldset>
 

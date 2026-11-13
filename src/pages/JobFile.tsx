@@ -241,6 +241,8 @@ export default function JobFile() {
               ["BL / AWB no.", job.bl_awb_no], ["Booking no.", job.booking_no], ["ETA", dayLabel(job.eta)],
               ["Port of discharge", job.port_of_discharge], ["Warehouse", job.port_of_destination],
               ["Containers", job.containers?.length ? <span className="pre">{job.containers.join("\n")}</span> : null],
+              ["Container size", [job.container_size, job.reefer == null ? null : job.reefer ? "Reefer" : "Dry"].filter(Boolean).join(", ") || null],
+              ...(job.reefer ? [["Electric until", dateTime(job.electric_until)] as Row] : []),
             ]} />
             <Group title="3. CRO and BL release" rows={[
               ["CRO no.", job.cro_no], ["CRO valid until", dayLabel(job.cro_valid_until)],

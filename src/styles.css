@@ -306,3 +306,8 @@ main:has(.form-sheet) { max-width: none; }
   .form-sheet.with-form .form-bg { display: block; opacity: 1; }
   .ff { color: #000; background: none !important; }
 }
+
+/* Gatepass summary, like the office's gatepass sheet */
+.gatepass-table th { background: #2e5e4e; color: #fff; text-align: center; font-weight: 700; letter-spacing: .02em; }
+.gatepass-table td { text-align: center; font-weight: 600; border: 1px solid #d5d9de; }
+.wide-modal { max-width: 98vw; width: fit-content; }

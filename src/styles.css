@@ -238,3 +238,12 @@ main:has(> .board), main:has(.board) { max-width: none; }
 
 .dup-warning { background: #fff4e5; border: 1px solid #f0b46a; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; color: #6b3d00; }
 .dup-warning ul { margin: 4px 0; padding-left: 18px; }
+
+/* Deadlines and alerts */
+.alert-chip { display: inline-block; font-size: .75rem; font-weight: 600; border-radius: 4px; padding: 1px 6px; margin: 1px 0; width: fit-content; }
+.alert-chip.overdue { background: #fbebeb; color: #a11b1b; border: 1px solid #f0b8b8; }
+.alert-chip.today { background: #f9ece7; color: #b34500; border: 1px solid #f0c3a8; }
+.alert-chip.soon { background: #f9eeda; color: #7a5600; border: 1px solid #ecd39b; }
+.alert-chip.big { font-size: .95rem; padding: 4px 10px; }
+.alert-group.overdue h2 { color: #a11b1b; } .alert-group.today h2 { color: #b34500; } .alert-group.soon h2 { color: #7a5600; }
+.nav-badge { display: inline-block; margin-left: 4px; min-width: 18px; padding: 0 5px; border-radius: 9px; background: #c62828; color: #fff; font-size: .72rem; font-weight: 700; text-align: center; line-height: 18px; }

@@ -243,6 +243,7 @@ export default function JobFile() {
             ]} />
             <Group title="3. CRO and BL release" rows={[
               ["CRO no.", job.cro_no], ["CRO valid until", dayLabel(job.cro_valid_until)],
+              ["Storage free until", dayLabel(job.storage_free_until)], ["Demurrage free until", dayLabel(job.demurrage_free_until)],
               ["BL release by", job.bl_release_type ? BL_RELEASE_LABEL[job.bl_release_type] : null],
               ...(job.bl_release_type === "original" ? [["Original BL picked up", dayLabel(job.obl_pickup_date)] as Row,
                 ["Original BL shipping date", dayLabel(job.obl_shipping_date)] as Row] : []),
@@ -263,6 +264,7 @@ export default function JobFile() {
               ["Yard", job.yard], ["Container at yard", dateTime(job.container_at_yard_at)], ["Released", dateTime(job.released_at)],
               ["Trucker", job.trucker_name], ["Plate no.", job.trucker_plate_no],
               ["Delivery address", job.delivery_address ? <span className="pre">{job.delivery_address}</span> : null],
+              ["Empty return due", dayLabel(job.empty_return_due)],
               ["Empty return", [job.empty_return, dayLabel(job.empty_return_date)].filter(Boolean).join(", ") || null],
             ]} />
             {(job.lodge_remarks || job.lodge_remarks_2 || job.lodge_note || job.notes) && <Group title="6. Remarks and notes" rows={[

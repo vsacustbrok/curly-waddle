@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { alertsFor } from "../lib/alerts";
 import { matchesSearch, searchAllYears, searchText, type FoundJob } from "../lib/search";
 import { STATUSES, STATUS_LABEL, dateTime, dayLabel, pretty, type Job, type Role, type JobStatus } from "../lib/types";
 
@@ -183,6 +184,7 @@ export default function Board() {
                     {s === "tabs" && (j.tabs_ref || j.tabs_at) && (
                       <span className="small kw-tabs">TABS {j.tabs_ref}{j.tabs_at && ` · ${dateTime(j.tabs_at)}`}</span>
                     )}
+                    {alertsFor(j).map((a) => <span key={a.kind} className={"alert-chip " + a.level}>{a.label}</span>)}
                     <CheckBadge scans={j.scan_results} />
                   </Link>
                 ))}

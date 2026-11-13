@@ -1,4 +1,5 @@
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import { supabase } from "./lib/supabase";
 import { canEditJobs, pretty } from "./lib/types";
@@ -13,6 +14,21 @@ import Security from "./pages/Security";
 import Reports from "./pages/Reports";
 import Calendar from "./pages/Calendar";
 import Dictation from "./pages/Dictation";
+import Alerts, { loadAlerts } from "./pages/Alerts";
+
+/** Menu link to the deadlines page, with how many are overdue or due today. Refreshed on every page change. */
+function AlertsLink() {
+  const [urgent, setUrgent] = useState(0);
+  const { pathname } = useLocation();
+  useEffect(() => {
+    let live = true;
+    loadAlerts().then((rows) => { if (live) setUrgent(rows.filter((r) => r.alert.level !== "soon").length); }, () => {});
+    return () => { live = false; };
+  }, [pathname]);
+  return (
+    <NavLink to="/alerts">Alerts{urgent > 0 && <span className="nav-badge" aria-label={`${urgent} overdue or due today`}>{urgent}</span>}</NavLink>
+  );
+}
 
 export default function App() {
   const { session, profile, loading, reload } = useAuth();
@@ -49,6 +65,7 @@ export default function App() {
         <nav>
           <NavLink to="/" end>Status board</NavLink>
           <NavLink to="/shipments">Shipments</NavLink>
+          <AlertsLink />
           <NavLink to="/calendar">Calendar</NavLink>
           <NavLink to="/reports">Reports</NavLink>
           {canEditJobs(role) && <NavLink to="/jobs/new">New shipment</NavLink>}
@@ -65,6 +82,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Board />} />
           <Route path="/shipments" element={<Shipments />} />
+          <Route path="/alerts" element={<Alerts />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/jobs/new" element={canEditJobs(role) ? <JobNew /> : <Navigate to="/" />} />

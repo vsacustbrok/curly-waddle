@@ -16,6 +16,7 @@ export type JobForm = {
   item_description: string; supplier: string; dp_contract: string; yard: string; empty_return: string; empty_return_date: string;
   lodge_remarks: string; lodge_remarks_2: string; lodge_note: string; lodge_status: string;
   gatepass_ref: string; gatepass_date: string; tabs_ref: string; tabs_at: string;
+  storage_free_until: string; demurrage_free_until: string; empty_return_due: string;
   notes: string;
 };
 export const emptyJob: JobForm = {
@@ -29,6 +30,7 @@ export const emptyJob: JobForm = {
   item_description: "", supplier: "", dp_contract: "", yard: "", empty_return: "", empty_return_date: "",
   lodge_remarks: "", lodge_remarks_2: "", lodge_note: "", lodge_status: "",
   gatepass_ref: "", gatepass_date: "", tabs_ref: "", tabs_at: "",
+  storage_free_until: "", demurrage_free_until: "", empty_return_due: "",
   notes: "",
 };
 
@@ -65,6 +67,7 @@ export const fromJob = (j: Job): JobForm => ({
   empty_return: j.empty_return ?? "", empty_return_date: j.empty_return_date ?? "",
   lodge_remarks: j.lodge_remarks ?? "", lodge_remarks_2: j.lodge_remarks_2 ?? "", lodge_note: j.lodge_note ?? "", lodge_status: j.lodge_status ?? "",
   gatepass_ref: j.gatepass_ref ?? "", gatepass_date: j.gatepass_date ?? "", tabs_ref: j.tabs_ref ?? "", tabs_at: toLocalInput(j.tabs_at),
+  storage_free_until: j.storage_free_until ?? "", demurrage_free_until: j.demurrage_free_until ?? "", empty_return_due: j.empty_return_due ?? "",
   notes: j.notes ?? "",
 });
 
@@ -95,6 +98,7 @@ export const toRow = (f: JobForm) => {
     empty_return: n(f.empty_return), empty_return_date: n(f.empty_return_date),
     lodge_remarks: n(f.lodge_remarks), lodge_remarks_2: n(f.lodge_remarks_2), lodge_note: n(f.lodge_note), lodge_status: n(f.lodge_status),
     gatepass_ref: n(f.gatepass_ref), gatepass_date: n(f.gatepass_date), tabs_ref: n(f.tabs_ref), tabs_at: fromLocalInput(f.tabs_at),
+    storage_free_until: n(f.storage_free_until), demurrage_free_until: n(f.demurrage_free_until), empty_return_due: n(f.empty_return_due),
   };
 };
 
@@ -108,9 +112,10 @@ export const FIELD_LABEL: Record<keyof JobForm, string> = {
   entry_no: "Entry no.", entry_filed_date: "Entry filed on", ticket_no: "Ticket no.", entry_status: "Entry status", entry_color: "Entry color", lodge_status: "Lodge status code", dp_contract: "DP / contract",
   final_sad_sent: "Final SAD sent", final_sad_sent_date: "Final SAD sent on", ssdt_sent: "SSDT sent", ssdt_sent_date: "SSDT sent on",
   gatepass_ref: "Gatepass ref. no.", gatepass_date: "Gatepass date", tabs_ref: "TABS booking ref. no.", tabs_at: "TABS date and time",
+  storage_free_until: "Storage free until", demurrage_free_until: "Demurrage free until", empty_return_due: "Empty return due",
   container_at_yard_at: "Container at yard", released_at: "Released", trucker_name: "Trucker", trucker_plate_no: "Plate no.",
   delivery_address: "Delivery address", yard: "Yard",
-  empty_return: "Empty return", empty_return_date: "Empty return date",
+  empty_return: "Empty return", empty_return_date: "Empty returned on",
   lodge_remarks: "Remarks", lodge_remarks_2: "Remarks 2", lodge_note: "Note", notes: "General notes",
 };
 
@@ -302,9 +307,11 @@ export default function JobFields({ history, clients, staff, lodged = false }: {
       </fieldset>
 
       <fieldset className="grid">
-        <legend>3. CRO and BL release</legend>
+        <legend>3. CRO, BL release and free time</legend>
         <label>CRO no.<input value={form.cro_no} onChange={set("cro_no")} /></label>
         <label>CRO valid until{date("cro_valid_until")}</label>
+        <label>Storage free until{date("storage_free_until")}</label>
+        <label>Demurrage free until{date("demurrage_free_until")}</label>
         <label>BL release by
           <select value={rel} onChange={set("bl_release_type")}>
             <option value="">Not set</option>
@@ -358,7 +365,8 @@ export default function JobFields({ history, clients, staff, lodged = false }: {
         <label>Plate no.{pick("trucker_plate_no", "ABC 1234")}</label>
         <label className="wide">Delivery address{pick("delivery_address", clientAddresses.length ? "Pick this client's earlier address or type a new one" : undefined)}</label>
         <label>Empty return (where){pick("empty_return")}</label>
-        <label>Empty return date{date("empty_return_date")}</label>
+        <label>Empty return due{date("empty_return_due")}</label>
+        <label>Empty returned on{date("empty_return_date")}</label>
       </fieldset>
 
       <fieldset className="grid">

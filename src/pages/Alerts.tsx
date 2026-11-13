@@ -1,20 +1,11 @@
 // Every open deadline across the active shipments: overdue first, then today, then the next few days.
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchAll, supabase } from "../lib/supabase";
-import { ALERT_KIND_LABEL, LEVEL_LABEL, SOON_DAYS, alertsFor, type Alert, type AlertKind, type AlertLevel } from "../lib/alerts";
-import { STATUS_LABEL, dayLabel, type Job } from "../lib/types";
+import { ALERT_KIND_LABEL, LEVEL_LABEL, SOON_DAYS, loadAlerts, type AlertKind, type AlertLevel, type AlertRow } from "../lib/alerts";
+import { STATUS_LABEL, dayLabel } from "../lib/types";
 
-const FIELDS = "id, job_no, status, eta, cro_valid_until, storage_free_until, demurrage_free_until, tabs_at, tabs_ref, empty_return_date, empty_return_due, entry_no, bl_awb_no, containers, trucker_plate_no, clients(name), processor:profiles!jobs_processor_id_fkey(full_name,email)";
-type Row = { job: Job; alert: Alert };
+type Row = AlertRow;
 const LEVELS: AlertLevel[] = ["overdue", "today", "soon"];
-
-/** Active shipments (not billed) with their open deadlines. Shared by this page and the menu badge. */
-export async function loadAlerts(): Promise<Row[]> {
-  const jobs = await fetchAll<Job>((a, b) => supabase.from("jobs").select(FIELDS).neq("status", "billed").order("job_no").range(a, b) as never);
-  return jobs.flatMap((job) => alertsFor(job).map((alert) => ({ job, alert })))
-    .sort((x, y) => x.alert.days - y.alert.days || x.job.job_no.localeCompare(y.job.job_no));
-}
 
 export default function Alerts() {
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -22,7 +13,7 @@ export default function Alerts() {
   const [kind, setKind] = useState<AlertKind | "">("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { loadAlerts().then(setRows, (e: Error) => { setError(e.message); setRows([]); }); }, []);
+  useEffect(() => { loadAlerts(true).then(setRows, (e: Error) => { setError(e.message); setRows([]); }); }, []);
   const shown = useMemo(() => (rows ?? []).filter((r) => !kind || r.alert.kind === kind), [rows, kind]);
   const count = (l: AlertLevel) => shown.filter((r) => r.alert.level === l).length;
 

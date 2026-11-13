@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import { dayLabel, type Job } from "../lib/types";
 import { CHARGE_LABEL, METHOD_LABEL, dueDate, money, peso, totals, vatOf, type Charge, type Payment } from "../lib/billing";
 
-const LOGO = "https://xskvjxbvkgysvwlotjpf.supabase.co/storage/v1/object/public/site-assets/vsacb-logo";
+const LOGO = "/logo.webp";
 
 export default function Soa() {
   const { id } = useParams();

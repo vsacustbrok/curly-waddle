@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "../lib/supabase";
+import { fetchAll, supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { alertsFor } from "../lib/alerts";
 import { matchesSearch, searchAllYears, searchText, type FoundJob } from "../lib/search";
@@ -55,6 +55,16 @@ async function downloadColumn(s: JobStatus, list: BoardJob[]) {
     .toFile(`VSA ${fileLabel(s)} shipments ${stamp}.xlsx`);
 }
 
+const BOARD_KEY = "vsa-board";
+/** Only the fields the board shows, searches, alerts on and puts in its Excel files. */
+const BOARD_FIELDS = [
+  "id", "job_no", "status", "service_type", "client_id", "processor_id", "client_ref_no", "item_description", "supplier",
+  "bl_awb_no", "containers", "vessel", "carrier", "eta", "entry_no", "entry_filed_date", "entry_color", "entry_status", "lodge_status",
+  "ticket_no", "cro_no", "cro_valid_until", "storage_free_until", "demurrage_free_until", "gatepass_ref", "gatepass_date",
+  "tabs_ref", "tabs_at", "yard", "trucker_name", "trucker_plate_no", "delivery_address", "port_of_destination",
+  "empty_return_due", "empty_return_date", "lodge_remarks", "lodge_note",
+].join(", ") + ", clients(name), processor:profiles!jobs_processor_id_fkey(full_name,email), scan_results(error_count, warning_count, run_at)";
+
 export default function Board() {
   const { profile } = useAuth();
   const role = profile!.role;
@@ -69,16 +79,19 @@ export default function Board() {
   useEffect(() => {
     // The board is for this year's work: shipments lodged this year, or not lodged yet.
     // Earlier years stay under Shipments and Reports.
+    // A refresh first shows the board as it was last loaded in this tab, then swaps in fresh data.
     const since = `${new Date().getFullYear()}-01-01`;
-    supabase.from("jobs")
-      .select("*, clients(name), processor:profiles!jobs_processor_id_fkey(full_name,email), scan_results(error_count, warning_count, run_at)")
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(BOARD_KEY) ?? "null") as { since: string; jobs: BoardJob[] } | null;
+      if (saved?.since === since) { setJobs(saved.jobs); setLoading(false); }
+    } catch { /* no saved copy */ }
+    fetchAll<BoardJob>((a, b) => supabase.from("jobs").select(BOARD_FIELDS)
       .or(`entry_filed_date.is.null,entry_filed_date.gte.${since}`)
-      .order("eta", { ascending: true, nullsFirst: false })
-      .then(({ data, error }) => {
-        if (error) setError(error.message);
-        setJobs((data as BoardJob[]) ?? []);
-        setLoading(false);
-      });
+      .order("eta", { ascending: true, nullsFirst: false }).order("id").range(a, b) as never)
+      .then((rows) => {
+        setError(""); setJobs(rows); setLoading(false);
+        try { sessionStorage.setItem(BOARD_KEY, JSON.stringify({ since, jobs: rows })); } catch { /* too big or blocked; fine */ }
+      }, (e: Error) => { setError(e.message); setLoading(false); });
   }, []);
 
   // Search covers everything typed into a shipment; the database is also searched (all years,

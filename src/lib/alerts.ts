@@ -1,6 +1,7 @@
 // Deadlines the office must not miss, worked out from each shipment's dates and step.
 // Overdue = the date has passed; today; soon = within the next few days.
 import { STATUSES, type Job, type JobStatus } from "./types";
+import { fetchAll, supabase } from "./supabase";
 
 export type AlertKind = "eta" | "cro" | "storage" | "demurrage" | "tabs" | "empty";
 export type AlertLevel = "overdue" | "today" | "soon";
@@ -60,3 +61,21 @@ export function alertsFor(j: AlertJob, today = localToday(), soonDays = SOON_DAY
 }
 
 export const LEVEL_LABEL: Record<AlertLevel, string> = { overdue: "Overdue", today: "Due today", soon: `Next ${SOON_DAYS} days` };
+
+const FIELDS = "id, job_no, status, eta, cro_valid_until, storage_free_until, demurrage_free_until, tabs_at, tabs_ref, empty_return_date, empty_return_due, entry_no, bl_awb_no, containers, trucker_plate_no, clients(name), processor:profiles!jobs_processor_id_fkey(full_name,email)";
+export type AlertRow = { job: Job; alert: Alert };
+let cache: { at: number; rows: Promise<AlertRow[]> } | null = null;
+
+/**
+ * Active shipments (not billed) with their open deadlines, most urgent first. Shared by the Alerts
+ * page and the menu badge; kept for a minute so moving between pages does not download it again.
+ */
+export function loadAlerts(fresh = false): Promise<AlertRow[]> {
+  if (!fresh && cache && Date.now() - cache.at < 60_000) return cache.rows;
+  const rows = fetchAll<Job>((a, b) => supabase.from("jobs").select(FIELDS).neq("status", "billed").order("job_no").range(a, b) as never)
+    .then((jobs) => jobs.flatMap((job) => alertsFor(job).map((alert) => ({ job, alert })))
+      .sort((x, y) => x.alert.days - y.alert.days || x.job.job_no.localeCompare(y.job.job_no)));
+  cache = { at: Date.now(), rows };
+  rows.catch(() => { cache = null; });
+  return rows;
+}

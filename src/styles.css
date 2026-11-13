@@ -122,7 +122,7 @@ dl.details { gap: 8px 20px; }
 body {
   background:
     linear-gradient(rgb(244 245 247 / .80), rgb(244 245 247 / .80)),
-    url("https://xskvjxbvkgysvwlotjpf.supabase.co/storage/v1/object/public/site-assets/port-background.webp") center / cover fixed no-repeat,
+    url("/port-background.webp") center / cover fixed no-repeat,
     var(--bg);
 }
 .center { background: linear-gradient(rgb(20 40 70 / .35), rgb(20 40 70 / .35)); }

@@ -1,24 +1,27 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import { supabase } from "./lib/supabase";
 import { canEditJobs, pretty } from "./lib/types";
+import { loadAlerts } from "./lib/alerts";
 import Login from "./pages/Login";
 import Board from "./pages/Board";
-import JobNew from "./pages/JobNew";
-import JobFile from "./pages/JobFile";
-import Clients from "./pages/Clients";
-import Team from "./pages/Team";
-import Shipments from "./pages/Shipments";
-import Security from "./pages/Security";
-import Reports from "./pages/Reports";
-import Calendar from "./pages/Calendar";
 import Dictation from "./pages/Dictation";
-import Alerts, { loadAlerts } from "./pages/Alerts";
-import Collections from "./pages/Collections";
-import Soa from "./pages/Soa";
 
-/** Menu link to the deadlines page, with how many are overdue or due today. Refreshed on every page change. */
+// Every other screen is downloaded only when it is first opened, so the first load stays small.
+const JobNew = lazy(() => import("./pages/JobNew"));
+const JobFile = lazy(() => import("./pages/JobFile"));
+const Clients = lazy(() => import("./pages/Clients"));
+const Team = lazy(() => import("./pages/Team"));
+const Shipments = lazy(() => import("./pages/Shipments"));
+const Security = lazy(() => import("./pages/Security"));
+const Reports = lazy(() => import("./pages/Reports"));
+const Calendar = lazy(() => import("./pages/Calendar"));
+const Alerts = lazy(() => import("./pages/Alerts"));
+const Collections = lazy(() => import("./pages/Collections"));
+const Soa = lazy(() => import("./pages/Soa"));
+
+/** Menu link to the deadlines page, with how many are overdue or due today (refreshed at most once a minute). */
 function AlertsLink() {
   const [urgent, setUrgent] = useState(0);
   const { pathname } = useLocation();
@@ -61,7 +64,7 @@ export default function App() {
     <>
       <header className="topbar">
         <span className="brand">
-          <img src="https://xskvjxbvkgysvwlotjpf.supabase.co/storage/v1/object/public/site-assets/vsacb-logo" alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+          <img src="/logo.webp" alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} />
           <strong>VSA Customs Brokerage</strong>
         </span>
         <nav>
@@ -82,6 +85,7 @@ export default function App() {
         </span>
       </header>
       <main>
+        <Suspense fallback={<p className="muted">Loading…</p>}>
         <Routes>
           <Route path="/" element={<Board />} />
           <Route path="/shipments" element={<Shipments />} />
@@ -97,6 +101,7 @@ export default function App() {
           <Route path="/security" element={role === "owner" ? <Security /> : <Navigate to="/" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
+        </Suspense>
       </main>
       <Dictation />
     </>

@@ -33,7 +33,7 @@ export default function Login() {
   return (
     <div className="center">
       <form className="card narrow" onSubmit={submit}>
-        <img className="login-logo" src="https://xskvjxbvkgysvwlotjpf.supabase.co/storage/v1/object/public/site-assets/vsacb-logo" alt="VSACB logo"
+        <img className="login-logo" src="/logo.webp" alt="VSACB logo"
           onError={(e) => { e.currentTarget.style.display = "none"; }} />
         <h1>VSA Customs Brokerage</h1>
         <p className="muted">{mode === "in" ? "Sign in to your account" : "Create an account"}</p>

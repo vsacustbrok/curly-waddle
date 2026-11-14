@@ -1,5 +1,7 @@
-// Month calendar of shipments by ETA, with each shipment's arrival details, so the team can see what
+// Month calendar of shipments by arrival, with each shipment's arrival details, so the team can see what
 // is arriving, when, on which vessel, with which containers, and where it goes.
+// A shipment sits on its ETA. Without one (most shipments imported from the daily lodge summary), it sits
+// on the day its container reached the yard, else on the day its entry was lodged, marked as such.
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchAll, supabase } from "../lib/supabase";
@@ -8,8 +10,20 @@ import { BL_RELEASE_LABEL, STATUS_LABEL, dayLabel, type Job } from "../lib/types
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const p2 = (x: number) => String(x).padStart(2, "0");
 const ymd = (y: number, m: number, d: number) => `${y}-${p2(m + 1)}-${p2(d)}`;
-const FIELDS = "id, job_no, status, eta, vessel, voyage, carrier, bl_awb_no, booking_no, containers, port_of_discharge, port_of_destination, item_description, supplier, entry_no, cro_no, cro_valid_until, bl_release_type, storage_free_until, demurrage_free_until, clients(name)";
+const FIELDS = "id, job_no, status, eta, vessel, voyage, carrier, bl_awb_no, booking_no, containers, port_of_discharge, port_of_destination, item_description, supplier, entry_no, cro_no, cro_valid_until, bl_release_type, storage_free_until, demurrage_free_until, container_at_yard_at, entry_filed_date, clients(name)";
 const vesselOf = (j: Job) => [j.vessel, j.voyage].filter(Boolean).join(" / ");
+/** Calendar day in Manila of a timestamp. */
+const manilaDay = (ts: string) => new Date(ts).toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+type Basis = "eta" | "yard" | "lodged";
+const BASIS_NOTE: Record<Basis, string> = { eta: "", yard: "at yard", lodged: "lodged" };
+/** The day a shipment is placed on, and what that day is. */
+function arrivalOf(j: Job): { date: string; basis: Basis } | null {
+  if (j.eta) return { date: j.eta, basis: "eta" };
+  if (j.container_at_yard_at) return { date: manilaDay(j.container_at_yard_at), basis: "yard" };
+  if (j.entry_filed_date) return { date: j.entry_filed_date, basis: "lodged" };
+  return null;
+}
+const arrival = (j: Job) => arrivalOf(j)?.date ?? "";
 
 export default function Calendar() {
   const now = new Date();
@@ -27,13 +41,23 @@ export default function Calendar() {
 
   useEffect(() => {
     setLoading(true); setDay(null);
-    fetchAll<Job>((a, b) => supabase.from("jobs").select(FIELDS).gte("eta", first).lte("eta", last).order("eta").order("job_no").range(a, b) as never)
-      .then((rows) => { setError(""); setJobs(rows); setLoading(false); }, (e: Error) => { setError(e.message); setJobs([]); setLoading(false); });
+    const from = `"${first}T00:00:00+08:00"`, to = `"${last}T23:59:59.999+08:00"`;
+    const inMonth = [
+      `and(eta.gte.${first},eta.lte.${last})`,
+      `and(eta.is.null,container_at_yard_at.gte.${from},container_at_yard_at.lte.${to})`,
+      `and(eta.is.null,container_at_yard_at.is.null,entry_filed_date.gte.${first},entry_filed_date.lte.${last})`,
+    ].join(",");
+    fetchAll<Job>((a, b) => supabase.from("jobs").select(FIELDS).or(inMonth).order("id").range(a, b) as never)
+      .then((rows) => {
+        setError("");
+        setJobs(rows.sort((x, y) => arrival(x).localeCompare(arrival(y)) || (x.job_no ?? "").localeCompare(y.job_no ?? "")));
+        setLoading(false);
+      }, (e: Error) => { setError(e.message); setJobs([]); setLoading(false); });
   }, [first, last]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, Job[]>();
-    for (const j of jobs) if (j.eta) map.set(j.eta, [...(map.get(j.eta) ?? []), j]);
+    for (const j of jobs) { const d = arrival(j); if (d) map.set(d, [...(map.get(d) ?? []), j]); }
     return map;
   }, [jobs]);
 
@@ -42,7 +66,8 @@ export default function Calendar() {
   while (cells.length % 7) cells.push(null);
   const shift = (n: number) => setMonth(({ y, m }) => { const d = new Date(y, m + n, 1); return { y: d.getFullYear(), m: d.getMonth() }; });
   const title = new Date(month.y, month.m, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  const upcoming = jobs.filter((j) => j.eta! >= todayStr).length;
+  const upcoming = jobs.filter((j) => arrival(j) >= todayStr).length;
+  const noEta = jobs.filter((j) => !j.eta).length;
   const boxes = jobs.reduce((s, j) => s + (j.containers?.length ?? 0), 0);
   const listed = day ? byDay.get(day) ?? [] : jobs;
 
@@ -53,7 +78,7 @@ export default function Calendar() {
       const t = (v: string | null | undefined) => (v ? { value: v, type: String } : null);
       const d = (v: string | null | undefined) => (v ? { value: new Date(v + "T00:00:00Z"), type: Date, format: "yyyy-mm-dd" } : null);
       const cols: [string, number, (j: Job) => unknown][] = [
-        ["ETA", 12, (j) => d(j.eta)], ["PN", 16, (j) => t(j.job_no)], ["Client", 28, (j) => t(j.clients?.name)], ["Step", 16, (j) => t(STATUS_LABEL[j.status])],
+        ["Arrival", 12, (j) => d(arrival(j))], ["Arrival from", 10, (j) => t({ eta: "ETA", yard: "At yard", lodged: "Lodged" }[arrivalOf(j)?.basis ?? "eta"])], ["PN", 16, (j) => t(j.job_no)], ["Client", 28, (j) => t(j.clients?.name)], ["Step", 16, (j) => t(STATUS_LABEL[j.status])],
         ["Vessel / voyage", 26, (j) => t(vesselOf(j))], ["Carrier", 18, (j) => t(j.carrier)], ["BL / AWB", 20, (j) => t(j.bl_awb_no)],
         ["Booking no.", 16, (j) => t(j.booking_no)], ["Containers", 30, (j) => t((j.containers ?? []).join(" "))], ["No. of containers", 10, (j) => ({ value: j.containers?.length ?? 0, type: Number })],
         ["Port of discharge", 18, (j) => t(j.port_of_discharge)], ["Warehouse", 20, (j) => t(j.port_of_destination)], ["Item", 30, (j) => t(j.item_description)],
@@ -81,7 +106,7 @@ export default function Calendar() {
         </div>
       </div>
       <p className="muted small">
-        Shipments are placed on their ETA. {loading ? "Loading…" : `${jobs.length} shipment${jobs.length === 1 ? "" : "s"} and ${boxes} container${boxes === 1 ? "" : "s"} this month, ${upcoming} still to arrive.`} Click a day to list only its arrivals; click a shipment to open it.
+        Shipments are placed on their ETA; one without an ETA is placed on the day its container reached the yard, or else the day it was lodged{noEta > 0 && !loading ? ` (${noEta} this month, marked "at yard" or "lodged")` : ""}. {loading ? "Loading…" : `${jobs.length} shipment${jobs.length === 1 ? "" : "s"} and ${boxes} container${boxes === 1 ? "" : "s"} this month, ${upcoming} still to arrive.`} Click a day to list only its arrivals; click a shipment to open it.
       </p>
       {error && <p className="error">{error}</p>}
       <section className="card cal">
@@ -99,6 +124,7 @@ export default function Calendar() {
                 <Link key={j.id} to={`/jobs/${j.id}`} className={"cal-item status-" + j.status} onClick={(e) => e.stopPropagation()}
                   title={[j.job_no, j.clients?.name, vesselOf(j), j.carrier, j.bl_awb_no && `BL ${j.bl_awb_no}`, (j.containers ?? []).join(" "), j.port_of_discharge, j.port_of_destination && `Warehouse ${j.port_of_destination}`, j.item_description, STATUS_LABEL[j.status]].filter(Boolean).join("\n")}>
                   <strong>{j.job_no}</strong>
+                  {arrivalOf(j)?.basis !== "eta" && <span className="small muted">{BASIS_NOTE[arrivalOf(j)!.basis]}</span>}
                   <span className="small">{j.clients?.name}</span>
                   {vesselOf(j) && <span className="small">Vessel {vesselOf(j)}</span>}
                   {!!j.containers?.length && <span className="small">{j.containers.length} cntr: {j.containers[0]}{j.containers.length > 1 ? " …" : ""}</span>}
@@ -118,17 +144,17 @@ export default function Calendar() {
             <button type="button" onClick={download} disabled={busy || !listed.length}>{busy ? "Preparing…" : "Download Excel"}</button>
           </div>
         </div>
-        {listed.length === 0 ? <p className="muted">{loading ? "Loading…" : "No shipments with an ETA in this month. Set the ETA in a shipment's project details."}</p> : (
+        {listed.length === 0 ? <p className="muted">{loading ? "Loading…" : "No shipments arriving in this month. Set the ETA in a shipment's project details."}</p> : (
           <div className="table-scroll">
             <table className="wide-table small">
               <thead>
-                <tr><th>ETA</th><th>PN</th><th>Client</th><th>Step</th><th>Vessel / voyage</th><th>Carrier</th><th>BL / AWB</th><th>Containers</th>
+                <tr><th>Arrival</th><th>PN</th><th>Client</th><th>Step</th><th>Vessel / voyage</th><th>Carrier</th><th>BL / AWB</th><th>Containers</th>
                   <th>Port → warehouse</th><th>Item</th><th>BL release</th><th>CRO valid until</th><th>Free time ends</th></tr>
               </thead>
               <tbody>
                 {listed.map((j) => (
-                  <tr key={j.id} className={j.eta! < todayStr ? "muted-row" : ""}>
-                    <td className="nowrap">{dayLabel(j.eta)}</td>
+                  <tr key={j.id} className={arrival(j) < todayStr ? "muted-row" : ""}>
+                    <td className="nowrap">{dayLabel(arrival(j))}{arrivalOf(j)?.basis !== "eta" && <span className="muted small"> ({BASIS_NOTE[arrivalOf(j)!.basis]})</span>}</td>
                     <td className="nowrap"><Link to={`/jobs/${j.id}`}>{j.job_no}</Link></td>
                     <td>{j.clients?.name}</td>
                     <td><span className={"badge status-" + j.status}>{STATUS_LABEL[j.status]}</span></td>

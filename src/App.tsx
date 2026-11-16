@@ -21,6 +21,7 @@ const Alerts = lazy(() => import("./pages/Alerts"));
 const Collections = lazy(() => import("./pages/Collections"));
 const Soa = lazy(() => import("./pages/Soa"));
 const FormPrint = lazy(() => import("./pages/FormPrint"));
+const Riders = lazy(() => import("./pages/Riders"));
 
 /** Menu link to the deadlines page, with how many are overdue or due today (refreshed at most once a minute). */
 function AlertsLink() {
@@ -61,6 +62,32 @@ export default function App() {
   }
 
   const role = profile.role;
+  // A rider sees only the rider itinerary: no shipments, clients or billing.
+  if (role === "rider") {
+    return (
+      <>
+        <header className="topbar">
+          <span className="brand">
+            <img src="/logo.webp" alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+            <strong>VSA Customs Brokerage</strong>
+          </span>
+          <nav><NavLink to="/riders">Rider itinerary</NavLink></nav>
+          <span className="who">
+            {profile.full_name || profile.email} <span className="badge">{pretty(role)}</span>
+            <button className="ghost small" onClick={() => supabase.auth.signOut()}>Sign out</button>
+          </span>
+        </header>
+        <main>
+          <Suspense fallback={<p className="muted">Loading…</p>}>
+            <Routes>
+              <Route path="/riders" element={<Riders />} />
+              <Route path="*" element={<Navigate to="/riders" />} />
+            </Routes>
+          </Suspense>
+        </main>
+      </>
+    );
+  }
   return (
     <>
       <header className="topbar">
@@ -76,6 +103,7 @@ export default function App() {
           <NavLink to="/reports">Reports</NavLink>
           {canEditJobs(role) && <NavLink to="/jobs/new">New shipment</NavLink>}
           {(role === "owner" || role === "billing") && <NavLink to="/collections">Collections</NavLink>}
+          <NavLink to="/riders">Riders</NavLink>
           <NavLink to="/clients">Clients</NavLink>
           {role === "owner" && <NavLink to="/team">Team</NavLink>}
           {role === "owner" && <NavLink to="/security">Security</NavLink>}
@@ -98,6 +126,7 @@ export default function App() {
           <Route path="/jobs/:id/soa" element={<Soa />} />
           <Route path="/jobs/:id/print/:form" element={<FormPrint />} />
           <Route path="/collections" element={role === "owner" || role === "billing" ? <Collections /> : <Navigate to="/" />} />
+          <Route path="/riders" element={<Riders />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/team" element={role === "owner" ? <Team /> : <Navigate to="/" />} />
           <Route path="/security" element={role === "owner" ? <Security /> : <Navigate to="/" />} />

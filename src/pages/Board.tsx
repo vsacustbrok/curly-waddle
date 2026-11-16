@@ -8,7 +8,7 @@ import { STATUSES, STATUS_LABEL, dateTime, dayLabel, pretty, type Job, type Role
 
 // The stages each role acts on, highlighted on their board.
 const FOCUS: Record<Role, JobStatus[]> = {
-  owner: [], pending: [],
+  owner: [], pending: [], rider: [],
   processor: ["pre_arrival", "lodged", "assessed", "paid", "gatepass"],
   dispatcher: ["tabs", "delivered"],
   billing: ["assessed", "delivered"],

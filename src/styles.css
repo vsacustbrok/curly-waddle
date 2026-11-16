@@ -346,3 +346,29 @@ table td { font-weight: 550; }
 .small { font-size: .85rem; }
 .muted { color: var(--muted); }
 .topbar nav { gap: 12px; } .topbar nav a { font-size: .95rem; }
+
+/* Rider daily itinerary */
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 14px; border-bottom: 2px solid var(--line); }
+.tabs button { background: transparent; color: var(--muted); border: 0; border-bottom: 3px solid transparent; border-radius: 0; margin-bottom: -2px; padding: 8px 14px; font-weight: 650; }
+.tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+.trip-card { border-left: 4px solid var(--accent); }
+.trip-card .trip-no { color: var(--accent); }
+.trip-card .grid { margin: 8px 0 0; }
+.tiles { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin: 4px 0 14px; }
+.tiles:has(.tile:nth-child(4)) { grid-template-columns: 2fr 1fr 1fr 1fr; }
+.tile { background: #eef3f9; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; }
+.tile span { font-size: .82rem; font-weight: 600; color: var(--muted); }
+.tile strong { font-size: 1.25rem; }
+.tile.main { background: var(--accent); border-color: var(--accent); }
+.tile.main span, .tile.main strong { color: #fff; }
+.day-log { border-top: 1px solid var(--line); padding: 12px 0 4px; }
+.day-log:first-of-type { border-top: 0; }
+.badge.trip-delivered, .badge.trip-picked_up { background: #e3f3e8; color: var(--ok); }
+.badge.trip-failed { background: #fbe6e4; color: var(--error); }
+.badge.trip-rescheduled { background: #fdf0d5; color: var(--warn); }
+@media (max-width: 640px) {
+  .tiles, .tiles:has(.tile:nth-child(4)) { grid-template-columns: 1fr 1fr; }
+  .tile.main { grid-column: 1 / -1; }
+  .trip-card .grid { grid-template-columns: 1fr 1fr; }
+  .tabs button { flex: 1; padding: 10px 6px; }
+}

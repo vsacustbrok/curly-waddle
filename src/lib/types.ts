@@ -1,4 +1,4 @@
-export type Role = "owner" | "processor" | "dispatcher" | "billing" | "pending";
+export type Role = "owner" | "processor" | "dispatcher" | "billing" | "rider" | "pending";
 export type JobStatus = "pre_arrival" | "lodged" | "assessed" | "paid" | "gatepass" | "tabs" | "released" | "delivered" | "billed";
 export type ServiceType = "brokerage" | "forwarding" | "trucking";
 
@@ -8,7 +8,7 @@ export const STATUS_LABEL: Record<JobStatus, string> = {
   pre_arrival: "Pre-arrival", lodged: "Lodged", assessed: "Assessed", paid: "Paid", gatepass: "Gatepass", tabs: "TABS",
   released: "Released", delivered: "Released / Delivered", billed: "Billed",
 };
-export const ROLES: Role[] = ["owner", "processor", "dispatcher", "billing", "pending"];
+export const ROLES: Role[] = ["owner", "processor", "dispatcher", "billing", "rider", "pending"];
 
 export const DOC_TYPES = [
   "bill_of_lading", "seaway_bill", "telex_release", "airway_bill",

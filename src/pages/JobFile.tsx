@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { markWords } from "../lib/keywords";
 import BillingSection from "./BillingSection";
+import RiderTripsSection from "./RiderTripsSection";
 import { useAuth } from "../lib/auth";
 import {
   BL_RELEASE_LABEL, DOC_GROUPS, PLACEHOLDER_CLIENT, STATUSES, dateTime, dayLabel, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, pretty, prettySource,
@@ -449,6 +450,7 @@ export default function JobFile() {
       </section>
 
       <BillingSection job={job} role={role} termsDays={job.clients?.payment_terms_days ?? 30} onJobSaved={load} />
+      <RiderTripsSection jobId={job.id} />
 
       <section className="card">
         <h2>Status history</h2>

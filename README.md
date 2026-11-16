@@ -23,6 +23,7 @@ Live site: https://vsa-brokerage-vsacb.vercel.app
 | Processor | Create and edit shipments and clients, upload and delete documents, run checks, move shipments forward |
 | Dispatcher | View shipments, upload documents, mark a shipment Released / Delivered |
 | Billing | View shipments, edit clients, upload documents, mark a shipment Paid or Billed |
+| Rider | Only the rider itinerary: their own daily log for today or yesterday, and their own reports. No shipments, clients or billing |
 | Pending | Nothing until the owner assigns a role |
 
 Sign-up is by invitation: only emails the owner lists on the Security page can create an account, and
@@ -88,6 +89,15 @@ signed in as owner or processor.
 
 Settings live in `app_settings` (key `scan`): `effort`, `fast` (fast mode, about twice the API cost),
 `split` and `concurrency`. It needs one secret on the Supabase project: `ANTHROPIC_API_KEY`.
+
+## Rider daily itinerary
+
+The Riders page records each rider's day: trips (what for, from and to which company, shipping line,
+document or item, optional shipment PN, contact, time out and in, status), odometer start and end,
+and gas, food and other expenses. Office staff can fill in or correct any rider's log and see all
+reports. A rider with their own login (role Rider, linked on the Riders tab) logs on their phone and
+sees only their own records. A trip with a PN appears on that shipment's page. Reports give totals
+per rider and a pick-up and delivery list, with an Excel download.
 
 ## Security and backups
 

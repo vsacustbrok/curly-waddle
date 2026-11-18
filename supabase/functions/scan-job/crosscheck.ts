@@ -2,7 +2,7 @@
 // No model calls here: every pass/fail decision is made in code so it is
 // repeatable and auditable.
 
-export type Party = { name?: string | null; address?: string | null; contact?: string | null };
+export type Party = { name?: string | null; address?: string | null; contact?: string | null; tin?: string | null };
 
 export type Extracted = {
   doc_type_detected?: string | null;
@@ -18,6 +18,7 @@ export type Extracted = {
   port_of_loading?: string | null;
   port_of_discharge?: string | null;
   container_numbers?: string[] | null;
+  seal_numbers?: string[] | null;
   gross_weight?: number | null;
   net_weight?: number | null;
   weight_unit?: string | null;
@@ -29,6 +30,8 @@ export type Extracted = {
   currency?: string | null;
   incoterm?: string | null;
   invoice_total?: number | null;
+  freight_amount?: number | null;
+  insurance_amount?: number | null;
   /** ISO dates (YYYY-MM-DD), null when not printed or not readable with certainty. */
   issue_date?: string | null;
   shipped_on_board_date?: string | null;
@@ -46,8 +49,10 @@ export type Extracted = {
   /** "yes", "no" or "unclear". */
   signed?: string | null;
   stamped?: string | null;
+  notes?: string | null;
   line_items?: Array<{
     description?: string | null;
+    hs_code?: string | null;
     quantity?: number | null;
     unit_price?: number | null;
     amount?: number | null;
@@ -79,6 +84,10 @@ export type Issue = {
   check: string;
   message: string;
   values: Array<{ source: string; value: unknown }>;
+  /** Added by the pre-lodgment audit: which of the four stages, a plain fix, and a stable key for broker reviews. */
+  stage?: number;
+  fix?: string;
+  key?: string;
 };
 
 export type Match = {
@@ -371,7 +380,7 @@ export function crossCheck(job: JobInput, docs: DocInput[]): CrossCheckResult {
         issues.push({
           severity: "error",
           check: "gross_weight_match",
-          message: "Gross weight differs by more than 0.5% between documents.",
+          message: `Gross weight differs between documents by up to ${Math.max(...vals.map((v) => Math.abs(v.kg! - base))).toLocaleString("en-US", { maximumFractionDigits: 2 })} kg (more than the 0.5% allowed).`,
           values,
         });
       } else {
@@ -402,7 +411,7 @@ export function crossCheck(job: JobInput, docs: DocInput[]): CrossCheckResult {
       const off = vals.slice(1).filter((v) => v.value !== base);
       const values = vals.map((v) => ({ source: v.source, value: `${v.value}${v.type ? " " + v.type : ""}` }));
       if (off.length) {
-        issues.push({ severity: "error", check: "package_count_match", message: "Number of packages differs between documents.", values });
+        issues.push({ severity: "error", check: "package_count_match", message: `Number of packages differs between documents (${[...new Set(vals.map((v) => v.value))].join(" vs ")}).`, values });
       } else {
         matches.push({ check: "package_count_match", value: base, sources: vals.map((v) => v.source) });
       }

@@ -12,15 +12,17 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import Anthropic from "npm:@anthropic-ai/sdk@1.6.0";
 import { crossCheck, type Issue } from "./crosscheck.ts";
-import { extractDocument, MODEL } from "./extract.ts";
+import { extractDocument, FAST_MODEL, MODEL, type ModelChoice } from "./extract.ts";
 import { consigneeOf, etaOf, jobPatch, PLACEHOLDER_CLIENT, primaryType, sameCompany, toDocInputs } from "./assemble.ts";
 import { spsChecks } from "./sps.ts";
 import { extraChecks } from "./extra.ts";
+import { auditChecks, fixFor, issueKey, lightOf, stageOf } from "./audit.ts";
+import { hsMaterial, hsReview } from "./hsreview.ts";
 
 const SCAN_ROLES = new Set(["owner", "processor"]);
 const MAX_DOCS = 15;
 
-type ScanSettings = { effort: "low" | "medium"; fast: boolean; split: boolean; concurrency: number };
+type ScanSettings = { effort: "low" | "medium"; fast: boolean; split: boolean; concurrency: number; models: ModelChoice };
 /** Settings from app_settings ("scan" row), with safe defaults; a request may override effort and fast. */
 function scanSettings(stored: unknown, body: { effort?: unknown; fast?: unknown; split?: unknown }): ScanSettings {
   const s = (stored && typeof stored === "object" ? stored : {}) as Record<string, unknown>;
@@ -33,6 +35,8 @@ function scanSettings(stored: unknown, body: { effort?: unknown; fast?: unknown;
     // Read the documents inside a multi-document PDF side by side. On unless switched off.
     split: (body.split ?? s.split) !== false,
     concurrency: Number.isFinite(n) ? Math.min(6, Math.max(1, Math.round(n))) : 4,
+    // The owner's choice: the low-cost model first with the top model for hard scans (default), or one model for all.
+    models: s.models === "top" || s.models === "fast" ? s.models : "mixed",
   };
 }
 
@@ -97,7 +101,7 @@ Deno.serve(async (req) => {
 
   const { data: job, error: jobErr } = await admin
     .from("jobs")
-    .select("id, job_no, client_id, bl_awb_no, booking_no, containers, vessel, voyage, port_of_discharge, eta, carrier, item_description, bl_release_type, clients(name)")
+    .select("id, job_no, client_id, bl_awb_no, booking_no, containers, vessel, voyage, port_of_discharge, eta, carrier, item_description, bl_release_type, required_docs, freight_amount, insurance_amount, charges_currency, clients(name)")
     .eq("id", body.job_id)
     .maybeSingle();
   if (jobErr) return json({ error: jobErr.message }, 500);
@@ -140,7 +144,7 @@ Deno.serve(async (req) => {
         }
         const now = new Date().toISOString();
         if (outcome.ok) {
-          const extracted = { parts: outcome.parts, _model: outcome.model, _ms: outcome.ms, _speed: outcome.speed, _segments: outcome.segments };
+          const extracted = { parts: outcome.parts, _model: outcome.model, _ms: outcome.ms, _speed: outcome.speed, _segments: outcome.segments, _reread: outcome.rereadWithTop ?? false };
           // Files uploaded without a type ("other") are filed under what was found in them.
           const detected = d.doc_type === "other" ? primaryType(outcome.parts) : null;
           const update: Record<string, unknown> = { extracted, extracted_at: now, extract_error: null };
@@ -261,9 +265,39 @@ Deno.serve(async (req) => {
     },
     inputs,
   );
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+  const allRead = toDocInputs(docs.filter((d) => d.extracted), null);
   const sps = spsChecks(inputs);
-  const extra = extraChecks(inputs, toDocInputs(docs.filter((d) => d.extracted), null), new Date().toISOString().slice(0, 10));
-  issues.push(...checked.issues, ...sps.issues, ...extra.issues);
+  const extra = extraChecks(inputs, allRead, today);
+  const audit = auditChecks(job, allRead, today);
+  // The audit's completeness and permit-expiry checks replace the older "missing document" and SPS validity notes.
+  const superseded = new Set(["documents_present", "sps_validity"]);
+  issues.push(...[...checked.issues, ...sps.issues, ...extra.issues].filter((i) => !superseded.has(i.check)), ...audit.issues);
+
+  // Stage 4 judgement check by the top model, re-used while the documents have not changed.
+  const fingerprint = docs.filter((d) => d.extracted).map((d) => `${d.id}:${(d.extracted as { _ms?: number })._ms ?? ""}`).sort().join(",");
+  const material = hsMaterial(allRead);
+  let hsIssues: typeof issues = [];
+  if (material) {
+    const { data: prev } = await admin.from("scan_results").select("model_notes").eq("job_id", job.id)
+      .order("run_at", { ascending: false }).limit(1).maybeSingle();
+    const notes = prev?.model_notes as { fingerprint?: string; hs?: typeof issues } | null;
+    if (notes?.fingerprint === fingerprint && Array.isArray(notes.hs)) hsIssues = notes.hs;
+    else {
+      try {
+        const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+        if (apiKey) hsIssues = await hsReview(new Anthropic({ apiKey, maxRetries: 1, timeout: 90_000 }), material);
+      } catch (err) {
+        hsIssues = [{ severity: "warning", check: "hs_description_review", message: `The HS code and description review could not run this time (${(err as Error).message}). Check the codes by hand or run the audit again.`, values: [] }];
+      }
+    }
+  }
+  issues.push(...hsIssues);
+
+  // Every issue gets its stage, a plain fix and a stable key; the light counts a broker's reviews.
+  for (const i of issues) { i.stage = stageOf(i.check); i.fix = fixFor(i.check); i.key = issueKey(i); }
+  const { data: reviews } = await admin.from("audit_reviews").select("issue_key").eq("job_id", job.id);
+  const light = lightOf(issues, new Set((reviews ?? []).map((r) => r.issue_key as string)));
 
   const errorCount = issues.filter((i) => i.severity === "error").length;
   const { data: scan, error: scanErr } = await admin
@@ -276,7 +310,9 @@ Deno.serve(async (req) => {
       warning_count: issues.length - errorCount,
       duration_ms: Date.now() - startedAt,
       issues,
-      matches: [...checked.matches, ...sps.matches, ...extra.matches],
+      matches: [...checked.matches, ...sps.matches, ...extra.matches, ...audit.matches],
+      light,
+      model_notes: { fingerprint, hs: hsIssues },
     })
     .select()
     .single();
@@ -287,7 +323,7 @@ Deno.serve(async (req) => {
     extracted_now: toExtract.length - failedNow.size,
     filled,
     client: patch.client_id ? clientName : null,
-    model: MODEL,
+    model: settings.models === "top" ? MODEL : settings.models === "fast" ? FAST_MODEL : `${FAST_MODEL}, ${MODEL} for hard scans`,
     settings,
     timing: {
       total_ms: Date.now() - startedAt,

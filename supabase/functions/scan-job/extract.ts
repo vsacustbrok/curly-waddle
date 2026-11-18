@@ -3,14 +3,17 @@ import Anthropic from "npm:@anthropic-ai/sdk@1.6.0";
 import { PDFDocument } from "npm:pdf-lib@1.17.1";
 import type { Extracted } from "./crosscheck.ts";
 
+/** The top model: re-reads hard scans and does the judgement checks. */
 export const MODEL = "claude-opus-5-5";
+/** The low-cost model that reads documents first. */
+export const FAST_MODEL = "claude-haiku-5-5";
 
 const nullable = (t: string) => ({ type: [t, "null"] });
 const str = { type: "string" };
 const party = {
   type: "object",
-  properties: { name: str, address: str, contact: str },
-  required: ["name", "address", "contact"],
+  properties: { name: str, address: str, contact: str, tin: str },
+  required: ["name", "address", "contact", "tin"],
   additionalProperties: false,
 };
 
@@ -39,6 +42,7 @@ const DOC_SCHEMA = {
     port_of_loading: str,
     port_of_discharge: str,
     container_numbers: { type: "array", items: { type: "string" } },
+    seal_numbers: { type: "array", items: { type: "string" } },
     gross_weight: nullable("number"),
     net_weight: nullable("number"),
     weight_unit: str,
@@ -50,6 +54,8 @@ const DOC_SCHEMA = {
     currency: str,
     incoterm: str,
     invoice_total: nullable("number"),
+    freight_amount: nullable("number"),
+    insurance_amount: nullable("number"),
     issue_date: str,
     shipped_on_board_date: str,
     sps_must_ship_out_date: str,
@@ -69,11 +75,12 @@ const DOC_SCHEMA = {
         type: "object",
         properties: {
           description: str,
+          hs_code: str,
           quantity: nullable("number"),
           unit_price: nullable("number"),
           amount: nullable("number"),
         },
-        required: ["description", "quantity", "unit_price", "amount"],
+        required: ["description", "hs_code", "quantity", "unit_price", "amount"],
         additionalProperties: false,
       },
     },
@@ -82,9 +89,9 @@ const DOC_SCHEMA = {
   required: [
     "doc_type_detected", "document_number", "bl_awb_number", "booking_number",
     "invoice_number", "shipper", "consignee", "notify_party", "vessel", "voyage",
-    "port_of_loading", "port_of_discharge", "container_numbers", "gross_weight",
+    "port_of_loading", "port_of_discharge", "container_numbers", "seal_numbers", "gross_weight",
     "net_weight", "weight_unit", "package_count", "package_type", "volume_cbm",
-    "goods_description", "hs_codes", "currency", "incoterm", "invoice_total", "issue_date",
+    "goods_description", "hs_codes", "currency", "incoterm", "invoice_total", "freight_amount", "insurance_amount", "issue_date",
     "shipped_on_board_date", "sps_must_ship_out_date", "sps_valid_until", "sps_permitted_weight",
     "sps_permitted_weight_unit", "country_of_origin", "eta_date", "carrier_name", "un_number", "dg_details",
     "signed", "stamped", "line_items", "notes",
@@ -107,7 +114,7 @@ A file may hold one document or several bound together (for example a bill of la
 
 Transcribe exactly what the document shows. Do not infer, normalise or correct values, and do not copy a value from one field into another. When a text field is not on the document, return an empty string; for a missing number return null; for a missing list return an empty array. The brokerage cross-checks these values between documents, so a guessed value is worse than a null.
 
-Document types: set doc_type_detected to exactly one of these names: bill_of_lading, seaway_bill, telex_release, airway_bill, commercial_invoice, sales_contract, purchase_order, packing_list, payment_proof, sps_import_clearance, arrival_notice, permit, entry, assessment, release, delivery_receipt, other.
+Document types: set doc_type_detected to exactly one of these names: bill_of_lading, seaway_bill, telex_release, airway_bill, commercial_invoice, sales_contract, purchase_order, packing_list, container_list, payment_proof, bank_document, insurance_certificate, sps_import_clearance, mav_certificate, fda_permit, peza_permit, agency_permit, health_certificate, phytosanitary_certificate, halal_certificate, fumigation_certificate, certificate_of_origin, importer_accreditation, arrival_notice, permit, entry, assessment, release, delivery_receipt, other.
 - bill_of_lading: an original or copy bill of lading (B/L, "Bill of Lading", negotiable).
 - seaway_bill: a Sea Waybill or Express Bill of Lading ("Sea Waybill", "Seaway Bill", "Non-negotiable", "Express B/L"), which needs no original for release.
 - telex_release: a bill of lading marked "TELEX RELEASE(D)", "SURRENDERED" or "ORIGINAL BL SURRENDERED", or a carrier's telex release message for a bill of lading. Fill its bill of lading fields the same way.
@@ -116,7 +123,17 @@ Document types: set doc_type_detected to exactly one of these names: bill_of_lad
 - sales_contract: a sales contract, sales confirmation or proforma contract between seller and buyer.
 - purchase_order: a purchase order (PO) issued by the buyer.
 - packing_list: a packing list or weight list.
+- container_list: a container or seal list (container numbers with seal numbers, sizes and weights).
 - payment_proof: proof of payment: bank remittance or telegraphic transfer (TT) advice, deposit slip, official receipt, payment confirmation.
+- bank_document: a letter of credit (L/C), documentary collection (D/P or D/A) instruction or bank release of documents.
+- insurance_certificate: a marine or cargo insurance certificate or policy.
+- mav_certificate: a Minimum Access Volume (MAV) import certificate or allocation.
+- fda_permit: a Philippine FDA licence, certificate of product registration or import permit.
+- peza_permit: a PEZA import permit or authority.
+- agency_permit: any other Philippine import permit or clearance: BPS Import Commodity Clearance (ICC), NTC, DENR-EMB, PDEA, FPA, SRA, BAI or BPI licence or permit.
+- health_certificate: a veterinary or health certificate from the exporting country. phytosanitary_certificate: a phytosanitary certificate. halal_certificate: a halal certificate. fumigation_certificate: a fumigation or ISPM-15 treatment certificate.
+- certificate_of_origin: a certificate of origin, including preferential forms (Form E, ATIGA Form D, AJCEP, AKFTA, RCEP); put the form name at the start of notes, e.g. "Form E".
+- importer_accreditation: the importer's Bureau of Customs accreditation (CPRS / AMO) or similar registration.
 For contracts and purchase orders, document_number is the contract or PO number, goods_description is the goods described, and line_items, currency and invoice_total are filled as for an invoice (invoice_total = the contract or order total). For proof of payment, document_number is the transaction or receipt reference, invoice_total is the amount paid and currency its currency.
 
 Field guidance:
@@ -128,24 +145,31 @@ Field guidance:
 - goods_description: the description of goods as printed (for a BL, the "description of packages and goods" box).
 - issue_date, shipped_on_board_date, sps_must_ship_out_date, sps_valid_until, eta_date: write these five as YYYY-MM-DD. Use them only for a full date printed on the document; if a date is masked, partly illegible, or its day and month could be read either way, return an empty string and say so in notes.
 - shipped_on_board_date: the "shipped on board" / "laden on board" date of a bill of lading, or the flight date of an air waybill. It is not the date of issue unless the document says the goods were shipped on that date.
-- sps_import_clearance is a Philippine Sanitary and Phytosanitary Import Clearance (SPSIC) from the Bureau of Animal Industry, Bureau of Plant Industry or BFAR. For it: document_number is the clearance number, consignee is the importer, shipper is the exporter or supplier, goods_description is the commodity, issue_date is the date issued, sps_must_ship_out_date is the "must ship out" date (the last day the goods may leave the origin), sps_valid_until is the validity or expiry date if printed separately, and sps_permitted_weight with sps_permitted_weight_unit is the quantity or volume allowed, when stated as a weight. Leave the sps_ fields empty on every other kind of document.
+- Permits, certificates and accreditations of any kind (SPS, MAV, FDA, PEZA, agency permits, health and other certificates, importer accreditation): document_number is the permit or certificate number, issue_date the date issued, sps_valid_until the expiry or validity date, and sps_permitted_weight with sps_permitted_weight_unit the quantity allowed when stated as a weight (for MAV, the volume allocated). sps_must_ship_out_date is only for an SPS import clearance.
+- sps_import_clearance is a Philippine Sanitary and Phytosanitary Import Clearance (SPSIC) from the Bureau of Animal Industry, Bureau of Plant Industry or BFAR. For it: document_number is the clearance number, consignee is the importer, shipper is the exporter or supplier, goods_description is the commodity, issue_date is the date issued, sps_must_ship_out_date is the "must ship out" date (the last day the goods may leave the origin), sps_valid_until is the validity or expiry date if printed separately, and sps_permitted_weight with sps_permitted_weight_unit is the quantity or volume allowed, when stated as a weight. Leave the sps_ fields empty on bills of lading, invoices, packing lists and other commercial papers.
 - arrival_notice is the carrier's or agent's notice that the shipment is arriving. eta_date is the estimated date of arrival at the port of discharge (ETA), on an arrival notice or any other document that prints one; it is not the departure (ETD) date. carrier_name is the shipping line or airline carrying the goods, as printed on a bill of lading, air waybill or arrival notice.
 - country_of_origin: as printed, on any document that states it.
 - shipper, consignee, notify_party: contact is the telephone or mobile number printed with that party, as printed; leave it empty if only an email or nothing is shown.
-- hs_codes: every HS / tariff code printed on the document.
+- hs_codes: every HS / AHTN tariff code printed on the document. In line_items, hs_code is the code printed on that line, if any.
+- seal_numbers: every container seal number, as printed.
+- tin: the Tax Identification Number printed with that party, as printed.
+- freight_amount and insurance_amount: the freight and insurance charges stated on the document (in its currency), when shown separately.
 - un_number, dg_details: fill these only when the document declares dangerous goods; leave them empty otherwise. un_number is the UN number. dg_details is the rest as printed, in the form "Class 3; PG II; emergency contact +1 703 527 3887", leaving out any part the document does not show.
 - signed: one of the words yes, no, unclear. Use "yes" if the document carries a handwritten or digital signature of its issuer, "no" if the signature space is blank or the document is marked draft / unsigned, "unclear" if you cannot tell. stamped: the same for an official stamp or seal (carrier, shipper, chamber of commerce, government agency).
 - notes: anything a broker should notice, such as illegible areas, handwritten corrections, or several documents in one file. Otherwise an empty string.`;
 
-export type ExtractOptions = { effort: "low" | "medium"; fast: boolean; split?: boolean };
+/** Which model reads: "mixed" tries the low-cost model and re-reads with the top model when the reading is weak. */
+export type ModelChoice = "mixed" | "top" | "fast";
+export type ExtractOptions = { effort: "low" | "medium"; fast: boolean; split?: boolean; models?: ModelChoice; model?: string };
 
 export type ExtractOutcome =
-  | { ok: true; parts: Extracted[]; model: string; usage: unknown; ms: number; speed: string; segments: number }
+  | { ok: true; parts: Extracted[]; model: string; usage: unknown; ms: number; speed: string; segments: number; rereadWithTop?: boolean }
   | { ok: false; error: string };
 
 type FileSource =
   | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } }
-  | { type: "image"; source: { type: "base64"; media_type: "image/png" | "image/jpeg"; data: string } };
+  | { type: "image"; source: { type: "base64"; media_type: "image/png" | "image/jpeg"; data: string } }
+  | { type: "document"; source: { type: "text"; media_type: "text/plain"; data: string } };
 
 /** One Claude call that must answer in the given JSON shape. Fast mode falls back to standard speed once. */
 async function ask(
@@ -153,13 +177,15 @@ async function ask(
   opts: ExtractOptions,
   req: { system: string; schema: unknown; source: FileSource; text: string; maxTokens: number; effort?: "low" | "medium" },
 ) {
+  const model = opts.model ?? MODEL;
+  // Fast mode and the server-side refusal fallback exist on the top model only.
+  const top = model === MODEL;
   const request = (fast: boolean) =>
     client.beta.messages.create({
-      model: MODEL,
-      ...(fast ? { speed: "fast" as const } : {}),
+      model,
+      ...(fast && top ? { speed: "fast" as const } : {}),
       max_tokens: req.maxTokens,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
+      ...(top ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
       system: req.system,
       output_config: {
         effort: req.effort ?? opts.effort,
@@ -174,7 +200,7 @@ async function ask(
     // Fast mode has its own rate limit and is not on every account: fall back to standard speed once.
     const retryable = err instanceof Anthropic.RateLimitError || err instanceof Anthropic.BadRequestError ||
       err instanceof Anthropic.PermissionDeniedError;
-    if (!opts.fast || !retryable) throw err;
+    if (!opts.fast || !top || !retryable) throw err;
     response = await request(false);
   }
   if (response.stop_reason === "refusal") throw new ReadError("The model declined to read this document.");
@@ -269,10 +295,40 @@ async function readSplit(client: Anthropic, opts: ExtractOptions, bytes: Uint8Ar
   return { parts, model: reads[0].model, usage: reads.map((r) => r.usage), speed: reads[0].speed, segments: ranges.length };
 }
 
+/**
+ * A reading worth checking with the top model: nothing found, a transport document without its
+ * BL / AWB number, an invoice without a total, or a note that part of the page could not be read.
+ */
+export function weakReading(parts: Extracted[]): boolean {
+  if (parts.length === 0) return true;
+  return parts.some((p) => {
+    const t = p.doc_type_detected ?? "";
+    if (["bill_of_lading", "seaway_bill", "telex_release", "airway_bill"].includes(t) && !p.bl_awb_number) return true;
+    if (t === "commercial_invoice" && p.invoice_total == null) return true;
+    return /illegib|unreadable|cannot (?:be )?read|could not (?:be )?read|blurr|cut off|obscured/i.test((p as { notes?: string | null }).notes ?? "");
+  });
+}
+
+/** Read a file with the low-cost model first, and with the top model when that reading is weak or fails. */
 export async function extractDocument(
   client: Anthropic,
   file: { bytes: Uint8Array; mime: string; name: string; declaredType: string },
   opts: ExtractOptions = { effort: "medium", fast: false },
+): Promise<ExtractOutcome> {
+  const choice = opts.models ?? "mixed";
+  if (choice === "top") return extractWith(client, file, { ...opts, model: MODEL });
+  const first = await extractWith(client, file, { ...opts, model: FAST_MODEL, fast: false });
+  if (choice === "fast") return first;
+  if (first.ok && !weakReading(first.parts)) return first;
+  const second = await extractWith(client, file, { ...opts, model: MODEL });
+  if (second.ok) return { ...second, ms: second.ms + (first.ok ? first.ms : 0), rereadWithTop: true };
+  return first.ok ? first : second;
+}
+
+async function extractWith(
+  client: Anthropic,
+  file: { bytes: Uint8Array; mime: string; name: string; declaredType: string },
+  opts: ExtractOptions,
 ): Promise<ExtractOutcome> {
   const started = Date.now();
   const isPdf = file.mime === "application/pdf";
@@ -282,10 +338,11 @@ export async function extractDocument(
       const split = await readSplit(client, opts, file.bytes, file.name).catch(() => null);
       if (split) return { ok: true, ...split, ms: Date.now() - started };
     }
-    const source: FileSource = isPdf ? pdfSource(file.bytes) : {
-      type: "image",
-      source: { type: "base64", media_type: file.mime as "image/png" | "image/jpeg", data: toBase64(file.bytes) },
-    };
+    // Excel sheets arrive converted to CSV text by the app.
+    const isText = file.mime === "text/csv" || file.mime === "text/plain";
+    const source: FileSource = isPdf ? pdfSource(file.bytes)
+      : isText ? { type: "document", source: { type: "text", media_type: "text/plain", data: new TextDecoder().decode(file.bytes) } }
+      : { type: "image", source: { type: "base64", media_type: file.mime as "image/png" | "image/jpeg", data: toBase64(file.bytes) } };
     const whole = await readWhole(
       client, opts, source,
       `File name: ${file.name}\n${
@@ -308,8 +365,10 @@ export async function extractDocument(
 /** The document types the reader may return, as named in the instructions. */
 export const DOC_TYPES = [
   "bill_of_lading", "seaway_bill", "telex_release", "airway_bill", "commercial_invoice", "sales_contract",
-  "purchase_order", "packing_list", "payment_proof", "sps_import_clearance", "arrival_notice", "permit",
-  "entry", "assessment", "release", "delivery_receipt", "other",
+  "purchase_order", "packing_list", "container_list", "payment_proof", "bank_document", "insurance_certificate",
+  "sps_import_clearance", "mav_certificate", "fda_permit", "peza_permit", "agency_permit", "health_certificate",
+  "phytosanitary_certificate", "halal_certificate", "fumigation_certificate", "certificate_of_origin",
+  "importer_accreditation", "arrival_notice", "permit", "entry", "assessment", "release", "delivery_receipt", "other",
 ];
 /** The reader's answer as one of DOC_TYPES ("Sea Waybill" → seaway_bill); anything unknown is "other". */
 export function documentType(v: unknown): string {
@@ -324,6 +383,20 @@ export function documentType(v: unknown): string {
   if (/purchase|^po$/.test(t)) return "purchase_order";
   if (/packing/.test(t)) return "packing_list";
   if (/payment|remittance|receipt_of_payment/.test(t)) return "payment_proof";
+  if (/letter_of_credit|^l_?c$|documentary|bank/.test(t)) return "bank_document";
+  if (/insurance/.test(t)) return "insurance_certificate";
+  if (/container_list|seal_list/.test(t)) return "container_list";
+  if (/^mav|minimum_access/.test(t)) return "mav_certificate";
+  if (/fda/.test(t)) return "fda_permit";
+  if (/peza/.test(t)) return "peza_permit";
+  if (/phyto/.test(t)) return "phytosanitary_certificate";
+  if (/halal/.test(t)) return "halal_certificate";
+  if (/fumigat|ispm/.test(t)) return "fumigation_certificate";
+  if (/health|veterinar/.test(t)) return "health_certificate";
+  if (/origin|form_e|form_d|atiga|acfta/.test(t)) return "certificate_of_origin";
+  if (/accredit|cprs/.test(t)) return "importer_accreditation";
+  if (/^sps|sanitary/.test(t)) return "sps_import_clearance";
+  if (/icc|ntc|denr|pdea|fpa|sra|bai|bpi|clearance/.test(t)) return "agency_permit";
   return "other";
 }
 

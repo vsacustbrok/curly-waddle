@@ -43,6 +43,7 @@ Deno.test("the reader's document type is always one of the known names", () => {
   assertEquals(documentType("Sea Waybill"), "seaway_bill");
   assertEquals(documentType("TELEX RELEASED BL"), "telex_release");
   assertEquals(documentType("Purchase Order"), "purchase_order");
-  assertEquals(documentType("certificate of origin"), "other");
+  assertEquals(documentType("certificate of origin"), "certificate_of_origin");
+  assertEquals(documentType("weighbridge ticket"), "other");
   assertEquals(documentType(null), "other");
 });

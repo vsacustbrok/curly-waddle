@@ -411,7 +411,7 @@ export default function JobFile() {
         <p className="muted small">
           Compares the documents with each other: parties, BL number, containers, weights, packages, invoice totals,
           goods, HS codes, Incoterms, origin, and the SPS clearance against the bill of lading.{" "}
-          <Link to={`/pre-lodgment-audit/${job.id}`}>
+          <Link to={`/duties/${job.id}`}>Duties and taxes</Link> · <Link to={`/pre-lodgment-audit/${job.id}`}>
             Pre-lodgment audit{latest?.light ? `: ${{ red: "🔴 do not lodge", yellow: "🟡 review needed", green: "🟢 ready" }[latest.light]}` : ""} →
           </Link>
         </p>

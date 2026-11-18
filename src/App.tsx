@@ -24,6 +24,8 @@ const Soa = lazy(() => import("./pages/Soa"));
 const FormPrint = lazy(() => import("./pages/FormPrint"));
 const Riders = lazy(() => import("./pages/Riders"));
 const PreLodgmentAudit = lazy(() => import("./pages/PreLodgmentAudit"));
+const Duties = lazy(() => import("./pages/Duties"));
+const DutyRates = lazy(() => import("./pages/DutyRates"));
 
 /** Lets each person choose the menu across the top (horizontal) or down the side (vertical). */
 function LayoutToggle() {
@@ -121,6 +123,7 @@ export default function App() {
           {canEditJobs(role) && <NavLink to="/jobs/new">New shipment</NavLink>}
           {(role === "owner" || role === "billing") && <NavLink to="/collections">Collections</NavLink>}
           <NavLink to="/pre-lodgment-audit">Pre-Lodgment Audit</NavLink>
+          <NavLink to="/duties">Duties & Taxes</NavLink>
           <NavLink to="/riders">Riders</NavLink>
           <NavLink to="/clients">Clients</NavLink>
           {role === "owner" && <NavLink to="/team">Team</NavLink>}
@@ -149,6 +152,9 @@ export default function App() {
           <Route path="/riders" element={<Riders />} />
           <Route path="/pre-lodgment-audit" element={<PreLodgmentAudit />} />
           <Route path="/pre-lodgment-audit/:id" element={<PreLodgmentAudit />} />
+          <Route path="/duties" element={<Duties />} />
+          <Route path="/duties/:jobId" element={<Duties />} />
+          <Route path="/duty-rates" element={<DutyRates />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/team" element={role === "owner" ? <Team /> : <Navigate to="/" />} />
           <Route path="/security" element={role === "owner" ? <Security /> : <Navigate to="/" />} />

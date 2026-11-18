@@ -544,6 +544,14 @@ function StepSignOff({ job, docs, scan, warnings, errors, reviewed, broker, stal
       </section>
 
       <section className="card">
+        <div className="row spread wrap">
+          <h2>Duties and taxes</h2>
+          <Link className="button-like" to={`/duties/${job.id}`}>Compute duties and taxes →</Link>
+        </div>
+        <p className="muted small">Opens the office computation with this shipment's invoice lines (one line per item), freight, insurance, exchange rate and containers filled in.</p>
+      </section>
+
+      <section className="card">
         <h2>Export for VASP encoding</h2>
         <p className="muted small">The shipment details and the invoice lines as read from the documents. {approved ? "Marked as approved." : "Marked as a draft until a broker approves."}</p>
         <div className="row wrap">

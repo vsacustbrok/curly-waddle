@@ -440,3 +440,22 @@ tr.clickable { cursor: pointer; }
 .approve-btn { font-size: 1.05rem; padding: 10px 22px; background: #2e7d32; border-color: #2e7d32; }
 .stamp { border: 2px solid #2e7d32; color: #155c2e; border-radius: 10px; padding: 10px 14px; font-weight: 600; }
 @media (max-width: 760px) { .split, .review-row { grid-template-columns: 1fr; } .split-right { min-height: 50vh; } }
+
+/* Duties and taxes */
+.duty-items td { vertical-align: top; }
+.duty-items input { min-width: 0; }
+.duty-items input.bad { border-color: #c62828; }
+.duty-items select.small { display: block; margin-top: 4px; font-size: .8rem; min-height: 0; padding: 2px 4px; }
+.duty-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+.duty-result .summary .grand td, .tsad .grand td { font-size: 1.1rem; font-weight: 800; color: var(--accent); }
+.tsad-flag { color: #c62828; font-weight: 800; letter-spacing: .05em; }
+.duty-actions { margin: 4px 0 24px; }
+.print-only { display: none; }
+@media (max-width: 760px) { .duty-columns { grid-template-columns: 1fr; } }
+@media print {
+  .duties .no-print, .duties .duty-actions { display: none !important; }
+  .duties .print-only { display: block; }
+  .duties .card { border: none; box-shadow: none; padding: 0; margin-bottom: 10px; }
+  body.print-tsad .duties .duty-result { display: none !important; }
+  body:not(.print-tsad) .duties .tsad { break-before: page; }
+}

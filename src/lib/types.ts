@@ -93,6 +93,7 @@ export type Client = {
   id: string; name: string; tin: string | null; address: string | null;
   contact_person: string | null; email: string | null; phone: string | null;
   payment_terms_days?: number;
+  notify_email?: string | null; notify_steps?: string[]; portal_token?: string | null; portal_enabled?: boolean;
 };
 export type Job = {
   id: string; job_no: string; client_id: string; service_type: ServiceType; status: JobStatus;
@@ -115,10 +116,14 @@ export type Job = {
   processor_id: string | null; notes: string | null;
   required_docs?: string[]; port_of_entry?: string | null; vasp?: string | null; freight_amount?: number | null;
   insurance_amount?: number | null; other_charges?: number | null; charges_currency?: string | null; exchange_rate?: number | null;
+  vessel_note?: string | null; vessel_checked_at?: string | null;
   created_at: string; updated_at: string;
   clients?: { name: string; payment_terms_days?: number; address?: string | null; tin?: string | null } | null;
   processor?: { full_name: string; email: string | null } | null;
 };
+/** Opens MarineTraffic's search for a vessel name, in a new tab (staff then type what they saw). */
+export const marineTrafficUrl = (vessel: string) =>
+  `https://www.marinetraffic.com/en/ais/index/search/all/keyword:${encodeURIComponent(vessel.trim())}`;
 /** One entry in a shipment's day-to-day status log. */
 export type JobNote = { id: number; job_id: string; note_date: string; body: string; author_id: string | null; author_name: string | null; created_at: string };
 /** A YYYY-MM-DD date as "Nov 13, 2026". */

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { supabase } from "../lib/supabase";
 import {
-  BL_RELEASE_LABEL, BL_RELEASE_TYPES, ENTRY_COLORS, ENTRY_STATUSES, pretty,
+  BL_RELEASE_LABEL, BL_RELEASE_TYPES, ENTRY_COLORS, ENTRY_STATUSES, marineTrafficUrl, pretty,
   type Client, type Job, type Profile, type ServiceType,
 } from "../lib/types";
 
 export type JobForm = {
   job_no: string; client_id: string; client_ref_no: string; service_type: ServiceType; processor_id: string;
   carrier: string; vessel: string; voyage: string; bl_awb_no: string; booking_no: string; containers: string[];
-  eta: string; port_of_discharge: string; port_of_destination: string;
+  eta: string; port_of_discharge: string; port_of_destination: string; vessel_note: string;
   cro_no: string; cro_valid_until: string; bl_release_type: string; obl_pickup_date: string; obl_shipping_date: string; telex_release_date: string;
   entry_no: string; entry_filed_date: string; ticket_no: string; entry_status: string; entry_color: string;
   final_sad_sent: boolean; final_sad_sent_date: string; ssdt_sent: boolean; ssdt_sent_date: string;
@@ -23,7 +23,7 @@ export type JobForm = {
 export const emptyJob: JobForm = {
   job_no: "", client_id: "", client_ref_no: "", service_type: "brokerage", processor_id: "",
   carrier: "", vessel: "", voyage: "", bl_awb_no: "", booking_no: "", containers: [""],
-  eta: "", port_of_discharge: "", port_of_destination: "",
+  eta: "", port_of_discharge: "", port_of_destination: "", vessel_note: "",
   cro_no: "", cro_valid_until: "", bl_release_type: "", obl_pickup_date: "", obl_shipping_date: "", telex_release_date: "",
   entry_no: "", entry_filed_date: "", ticket_no: "", entry_status: "", entry_color: "",
   final_sad_sent: false, final_sad_sent_date: "", ssdt_sent: false, ssdt_sent_date: "",
@@ -57,7 +57,7 @@ export const fromJob = (j: Job): JobForm => ({
   processor_id: j.processor_id ?? "",
   carrier: j.carrier ?? "", vessel: j.vessel ?? "", voyage: j.voyage ?? "", bl_awb_no: j.bl_awb_no ?? "",
   booking_no: j.booking_no ?? "", containers: j.containers?.length ? [...j.containers] : [""],
-  eta: j.eta ?? "", port_of_discharge: j.port_of_discharge ?? "", port_of_destination: j.port_of_destination ?? "",
+  eta: j.eta ?? "", port_of_discharge: j.port_of_discharge ?? "", port_of_destination: j.port_of_destination ?? "", vessel_note: j.vessel_note ?? "",
   cro_no: j.cro_no ?? "", cro_valid_until: j.cro_valid_until ?? "", bl_release_type: j.bl_release_type ?? "", obl_pickup_date: j.obl_pickup_date ?? "",
   obl_shipping_date: j.obl_shipping_date ?? "", telex_release_date: j.telex_release_date ?? "",
   entry_no: j.entry_no ?? "", entry_filed_date: j.entry_filed_date ?? "", ticket_no: j.ticket_no ?? "", entry_status: j.entry_status ?? "", entry_color: j.entry_color ?? "",
@@ -83,7 +83,7 @@ export const toRow = (f: JobForm) => {
     client_id: f.client_id, client_ref_no: n(f.client_ref_no), service_type: f.service_type, processor_id: n(f.processor_id),
     carrier: n(f.carrier), vessel: n(f.vessel), voyage: n(f.voyage), bl_awb_no: n(f.bl_awb_no), booking_no: n(f.booking_no),
     containers: [...new Set(f.containers.map((c) => c.replace(/\s+/g, "").toUpperCase()).filter(Boolean))],
-    eta: n(f.eta), port_of_discharge: n(f.port_of_discharge), port_of_destination: n(f.port_of_destination),
+    eta: n(f.eta), port_of_discharge: n(f.port_of_discharge), port_of_destination: n(f.port_of_destination), vessel_note: n(f.vessel_note),
     // Only the dates that belong to the chosen kind of release are kept.
     cro_no: n(f.cro_no), cro_valid_until: n(f.cro_valid_until),
     bl_release_type: n(rel),
@@ -111,7 +111,7 @@ export const toRow = (f: JobForm) => {
 export const FIELD_LABEL: Record<keyof JobForm, string> = {
   job_no: "PN (project number)", client_id: "Client", client_ref_no: "Client reference no.", service_type: "Service",
   processor_id: "Processor", item_description: "Item description", supplier: "Supplier", carrier: "Carrier", vessel: "Vessel", voyage: "Voyage", bl_awb_no: "BL / AWB no.",
-  booking_no: "Booking no.", containers: "Containers", eta: "ETA", port_of_discharge: "Port of discharge",
+  booking_no: "Booking no.", containers: "Containers", eta: "ETA", vessel_note: "Last vessel check", port_of_discharge: "Port of discharge",
   port_of_destination: "Warehouse", cro_no: "CRO no.", cro_valid_until: "CRO valid until", bl_release_type: "BL release",
   obl_pickup_date: "Original BL picked up", obl_shipping_date: "Original BL shipping date", telex_release_date: "Telex / SWB date",
   entry_no: "Entry no.", entry_filed_date: "Entry filed on", ticket_no: "Ticket no.", entry_status: "Entry status", entry_color: "Entry color", lodge_status: "Lodge status code", dp_contract: "DP / contract",
@@ -214,8 +214,10 @@ const pickOnly = {
   onClick: (e: MouseEvent<HTMLInputElement>) => { e.currentTarget.showPicker?.(); },
 };
 
-export default function JobFields({ history, clients, staff, lodged = false }: {
+export default function JobFields({ history, clients, staff, lodged = false, vesselCheckedAt }: {
   history: FormHistory; clients: Client[]; staff: Profile[];
+  /** When the last vessel check was saved (stamped by the database). */
+  vesselCheckedAt?: string | null;
   /** The entry colour can be chosen only once the entry has been lodged. */
   lodged?: boolean;
 }) {
@@ -245,6 +247,7 @@ export default function JobFields({ history, clients, staff, lodged = false }: {
     setForm({ ...form, trucker_name: name, trucker_plate_no: plate && !form.trucker_plate_no ? plate : form.trucker_plate_no }, "trucker_name");
   };
   const clientAddresses = sugg.addressesFor.get(form.client_id) ?? [];
+  const checkedAt = vesselCheckedAt ? new Date(vesselCheckedAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }) : "";
 
   return (
     <>
@@ -290,11 +293,20 @@ export default function JobFields({ history, clients, staff, lodged = false }: {
       <fieldset className="grid">
         <legend>2. Arrival</legend>
         <label>Carrier{pick("carrier")}</label>
-        <label>Vessel{pick("vessel")}</label>
+        <label>Vessel{pick("vessel")}
+          {form.vessel.trim() && (
+            <a className="small" href={marineTrafficUrl(form.vessel)} target="_blank" rel="noopener noreferrer"
+              title="Opens MarineTraffic in a new tab. Type what you see in Last vessel check.">Track on MarineTraffic ↗</a>
+          )}
+        </label>
         <label>Voyage<input value={form.voyage} onChange={set("voyage")} /></label>
         <label>BL / AWB no.<input value={form.bl_awb_no} onChange={set("bl_awb_no")} /></label>
         <label>Booking no.<input value={form.booking_no} onChange={set("booking_no")} /></label>
         <label>ETA{date("eta")}</label>
+        <label className="wide">Last vessel check{checkedAt ? <span className="muted small"> (saved {checkedAt})</span> : ""}
+          <input value={form.vessel_note} onChange={set("vessel_note")} maxLength={300}
+            placeholder="What MarineTraffic shows, e.g. Anchored at Manila Bay, berthing Nov 20" />
+        </label>
         <label>Port of discharge{pick("port_of_discharge")}</label>
         <label>Warehouse{pick("port_of_destination")}</label>
         <div className="wide containers">

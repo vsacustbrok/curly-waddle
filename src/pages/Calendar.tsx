@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchAll, supabase } from "../lib/supabase";
-import { BL_RELEASE_LABEL, STATUS_LABEL, dayLabel, type Job } from "../lib/types";
+import { BL_RELEASE_LABEL, STATUS_LABEL, dayLabel, marineTrafficUrl, type Job } from "../lib/types";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const p2 = (x: number) => String(x).padStart(2, "0");
 const ymd = (y: number, m: number, d: number) => `${y}-${p2(m + 1)}-${p2(d)}`;
-const FIELDS = "id, job_no, status, eta, vessel, voyage, carrier, bl_awb_no, booking_no, containers, port_of_discharge, port_of_destination, item_description, supplier, entry_no, cro_no, cro_valid_until, bl_release_type, storage_free_until, demurrage_free_until, entry_filed_date, clients(name)";
+const FIELDS = "id, job_no, status, eta, vessel, voyage, vessel_note, vessel_checked_at, carrier, bl_awb_no, booking_no, containers, port_of_discharge, port_of_destination, item_description, supplier, entry_no, cro_no, cro_valid_until, bl_release_type, storage_free_until, demurrage_free_until, entry_filed_date, clients(name)";
 const vesselOf = (j: Job) => [j.vessel, j.voyage].filter(Boolean).join(" / ");
 /** The day a shipment is placed on: the date its entry was filed. */
 const arrival = (j: Job) => j.entry_filed_date ?? "";
@@ -143,7 +143,8 @@ export default function Calendar() {
                     <td className="nowrap"><Link to={`/jobs/${j.id}`}>{j.job_no}</Link></td>
                     <td>{j.clients?.name}</td>
                     <td><span className={"badge status-" + j.status}>{STATUS_LABEL[j.status]}</span></td>
-                    <td>{vesselOf(j)}</td>
+                    <td>{vesselOf(j)}{j.vessel && <> <a href={marineTrafficUrl(j.vessel)} target="_blank" rel="noopener noreferrer" title="Track on MarineTraffic" aria-label={`Track ${j.vessel} on MarineTraffic`}>↗</a></>}
+                      {j.vessel_note && <div className="muted">⚓ {j.vessel_note}</div>}</td>
                     <td>{j.carrier}</td>
                     <td>{j.bl_awb_no}</td>
                     <td>{(j.containers ?? []).join(" ")}</td>

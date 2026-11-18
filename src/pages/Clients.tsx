@@ -1,7 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { canEditClients, type Client } from "../lib/types";
+import { STATUS_LABEL, canEditClients, type Client, type JobStatus } from "../lib/types";
+
+/** Steps a client can choose to be emailed about (Released counts as Delivered). */
+const NOTIFY_STEPS: JobStatus[] = ["lodged", "assessed", "paid", "gatepass", "tabs", "delivered"];
+const DEFAULT_STEPS = ["lodged", "assessed", "delivered"];
+const portalLink = (token: string) => `${window.location.origin}/track/${token}`;
 
 const blank = { name: "", tin: "", address: "", contact_person: "", email: "", phone: "", payment_terms_days: "30" };
 type Form = typeof blank;
@@ -20,6 +25,13 @@ export default function Clients() {
   const [mergeFrom, setMergeFrom] = useState<Client | null>(null);
   const [mergeInto, setMergeInto] = useState("");
   const [busy, setBusy] = useState(false);
+  // Status updates: where emails go, which steps send one, and the private client page.
+  const [notifyEmail, setNotifyEmail] = useState("");
+  const [notifySteps, setNotifySteps] = useState<string[]>(DEFAULT_STEPS);
+  const [portalOn, setPortalOn] = useState(false);
+  const resetUpdates = (c?: Client) => {
+    setNotifyEmail(c?.notify_email ?? ""); setNotifySteps(c?.notify_steps ?? DEFAULT_STEPS); setPortalOn(c?.portal_enabled ?? false);
+  };
 
   const load = () => supabase.from("clients").select("*").order("name").then(({ data, error }) => {
     if (error) setError(error.message);
@@ -34,13 +46,34 @@ export default function Clients() {
     const terms = Number(form.payment_terms_days || 30);
     if (!Number.isInteger(terms) || terms < 0 || terms > 365) { setError("Payment terms must be a whole number of days, 0 to 365."); return; }
     row.payment_terms_days = terms;
+    const mail = notifyEmail.trim();
+    if (mail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { setError("The email for status updates does not look right."); return; }
+    row.notify_email = mail || null;
+    row.notify_steps = notifySteps;
+    row.portal_enabled = portalOn;
+    const current = clients.find((c) => c.id === editing);
+    if (portalOn && !current?.portal_token) row.portal_token = crypto.randomUUID();
     const res = editing
       ? await supabase.from("clients").update(row).eq("id", editing)
       : await supabase.from("clients").insert(row);
     if (res.error) { setError(res.error.message); return; }
     setForm(blank);
     setEditing(null);
+    resetUpdates();
     load();
+  }
+
+  async function copyLink(c: Client) {
+    if (!c.portal_token) return;
+    try { await navigator.clipboard.writeText(portalLink(c.portal_token)); setNotice(`Link to ${c.name}'s client page copied. Send it to the client.`); }
+    catch { window.prompt("Copy this link:", portalLink(c.portal_token)); }
+  }
+  /** A new secret link: the old one stops working at once (for a link sent to the wrong person). */
+  async function newLink(c: Client) {
+    if (!confirm(`Make a new link for ${c.name}? The old link stops working at once, and the client needs the new one.`)) return;
+    setError(""); setNotice("");
+    const { error } = await supabase.from("clients").update({ portal_token: crypto.randomUUID() }).eq("id", c.id);
+    if (error) setError(error.message); else { setNotice(`New link made for ${c.name}. Use Copy link to send it.`); load(); }
   }
 
   async function remove(c: Client) {
@@ -96,9 +129,32 @@ export default function Clients() {
               </label>
             ))}
           </div>
+          <fieldset className="client-updates">
+            <legend>Status updates for this client</legend>
+            <label>Email for updates
+              <input type="email" value={notifyEmail} onChange={(e) => setNotifyEmail(e.target.value)}
+                placeholder={form.email ? `e.g. ${form.email}` : "Leave blank for no emails"} />
+            </label>
+            {notifyEmail.trim() && <>
+              <span className="field-label">Send an email when the shipment reaches:</span>
+              <div className="row wrap">
+                {NOTIFY_STEPS.map((st) => (
+                  <label key={st} className="check">
+                    <input type="checkbox" checked={notifySteps.includes(st)}
+                      onChange={(e) => setNotifySteps(e.target.checked ? [...notifySteps, st] : notifySteps.filter((x) => x !== st))} />
+                    {STATUS_LABEL[st]}
+                  </label>
+                ))}
+              </div>
+            </>}
+            <label className="check">
+              <input type="checkbox" checked={portalOn} onChange={(e) => setPortalOn(e.target.checked)} />
+              Client page on: the client can see their open shipments (steps, ETA, vessel) with a private link. No amounts or documents are shown.
+            </label>
+          </fieldset>
           <div className="row">
             <button>{editing ? "Save" : "Add client"}</button>
-            {editing && <button type="button" className="ghost" onClick={() => { setEditing(null); setForm(blank); }}>Cancel</button>}
+            {editing && <button type="button" className="ghost" onClick={() => { setEditing(null); setForm(blank); resetUpdates(); }}>Cancel</button>}
           </div>
         </form>
       )}
@@ -106,15 +162,23 @@ export default function Clients() {
       <section className="card">
         {clients.length === 0 ? <p className="muted">No clients yet.</p> : (
           <table>
-            <thead><tr><th>Name</th><th>TIN</th><th>Contact</th><th>Email</th><th>Phone</th><th>Terms</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>TIN</th><th>Contact</th><th>Email</th><th>Phone</th><th>Terms</th><th>Updates</th><th></th></tr></thead>
             <tbody>
               {clients.map((c) => (
                 <tr key={c.id}>
                   <td>{c.name}</td><td>{c.tin}</td><td>{c.contact_person}</td><td>{c.email}</td><td>{c.phone}</td><td className="nowrap">{c.payment_terms_days ?? 30} days</td>
+                  <td className="small">
+                    {c.notify_email ? <div title={(c.notify_steps ?? []).map((st) => STATUS_LABEL[st as JobStatus] ?? st).join(", ")}>✉ {c.notify_email}</div> : <span className="muted">No emails</span>}
+                    {c.portal_enabled && c.portal_token && (
+                      <div className="nowrap">Client page: <button type="button" className="link" onClick={() => copyLink(c)}>Copy link</button>
+                        {canEditClients(role) && <button type="button" className="link" onClick={() => newLink(c)}>New link</button>}</div>
+                    )}
+                  </td>
                   <td className="right">
                     {canEditClients(role) && (
                       <button className="link" onClick={() => {
                         setEditing(c.id);
+                        resetUpdates(c);
                         setForm({ name: c.name, tin: c.tin ?? "", address: c.address ?? "", contact_person: c.contact_person ?? "", email: c.email ?? "", phone: c.phone ?? "", payment_terms_days: String(c.payment_terms_days ?? 30) });
                         window.scrollTo(0, 0);
                       }}>Edit</button>

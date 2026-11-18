@@ -27,6 +27,7 @@ const PreLodgmentAudit = lazy(() => import("./pages/PreLodgmentAudit"));
 const Duties = lazy(() => import("./pages/Duties"));
 const DutyRates = lazy(() => import("./pages/DutyRates"));
 const PreSad = lazy(() => import("./pages/PreSad"));
+const Track = lazy(() => import("./pages/Track"));
 
 /** Lets each person choose the menu across the top (horizontal) or down the side (vertical). */
 function LayoutToggle() {
@@ -57,6 +58,9 @@ function AlertsLink() {
 
 export default function App() {
   const { session, profile, loading, reload } = useAuth();
+  // The client tracking page is public: it opens with its private link, signed in or not.
+  const track = window.location.pathname.match(/^\/track\/([^/?#]+)\/?$/);
+  if (track) return <Suspense fallback={<div className="center muted">Loading…</div>}><Track token={decodeURIComponent(track[1])} /></Suspense>;
   if (loading) return <div className="center muted">Loading…</div>;
   if (!session) return <Login />;
   if (!profile) return <div className="center muted">Loading your profile…</div>;

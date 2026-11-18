@@ -6,7 +6,7 @@ import BillingSection from "./BillingSection";
 import RiderTripsSection from "./RiderTripsSection";
 import { useAuth } from "../lib/auth";
 import {
-  BL_RELEASE_LABEL, DOC_GROUPS, PLACEHOLDER_CLIENT, STATUSES, dateTime, dayLabel, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, pretty, prettySource,
+  BL_RELEASE_LABEL, DOC_GROUPS, PLACEHOLDER_CLIENT, STATUSES, dateTime, dayLabel, STATUS_LABEL, allowedNextStatuses, canEditJobs, checkLabel, marineTrafficUrl, pretty, prettySource,
   type Client, type Job, type JobDocument, type JobNote, type JobStatus, type Profile, type ScanResult, type StatusHistory,
 } from "../lib/types";
 import { partsOf, summarize, summaryRows } from "../lib/shipment";
@@ -15,6 +15,8 @@ import JobFields, { ConfirmChanges, describeChanges, emptyJob, findDuplicates, f
 
 const fmt = (iso: string) => new Date(iso).toLocaleString();
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
+type ClientMail = { id: number; step: string; to_email: string; status: "queued" | "sent" | "failed" | "skipped"; error: string | null; created_at: string; sent_at: string | null };
+const MAIL_STATUS = { queued: "Waiting to send", sent: "Sent", failed: "Not sent", skipped: "Skipped" } as const;
 const show = (v: unknown) => (v == null ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
 export default function JobFile() {
@@ -37,6 +39,7 @@ export default function JobFile() {
   const [confirming, setConfirming] = useState<string[] | null>(null);
   const [dupes, setDupes] = useState<string[] | null>(null);
   const [notes, setNotes] = useState<JobNote[]>([]);
+  const [mails, setMails] = useState<ClientMail[]>([]);
   const [noteDate, setNoteDate] = useState(today());
   const [noteText, setNoteText] = useState("");
   const [error, setError] = useState(arrived.error ?? "");
@@ -57,13 +60,15 @@ export default function JobFile() {
   }, [since]);
 
   const load = useCallback(async () => {
-    const [j, d, s, h, nt] = await Promise.all([
+    const [j, d, s, h, nt, cm] = await Promise.all([
       supabase.from("jobs").select("*, clients(name, payment_terms_days), processor:profiles!jobs_processor_id_fkey(full_name,email)").eq("id", id!).maybeSingle(),
       supabase.from("job_documents").select("*").eq("job_id", id!).order("uploaded_at"),
       supabase.from("scan_results").select("*").eq("job_id", id!).order("run_at", { ascending: false }).limit(5),
       supabase.from("job_status_history").select("*").eq("job_id", id!).order("changed_at"),
       supabase.from("job_notes").select("*").eq("job_id", id!).order("note_date", { ascending: false }).order("id", { ascending: false }),
+      supabase.from("client_notifications").select("id, step, to_email, status, error, created_at, sent_at").eq("job_id", id!).order("id"),
     ]);
+    setMails((cm.data as ClientMail[]) ?? []);
     setNotes((nt.data as JobNote[]) ?? []);
     if (j.error) setError(j.error.message);
     if (!j.data) setNotFound(true);
@@ -256,7 +261,7 @@ export default function JobFile() {
         </div>
         {editing ? (
           <form onSubmit={review}>
-            <JobFields history={edit} clients={clients} staff={staff} lodged={STATUSES.indexOf(job.status) >= STATUSES.indexOf("lodged")} />
+            <JobFields history={edit} clients={clients} staff={staff} lodged={STATUSES.indexOf(job.status) >= STATUSES.indexOf("lodged")} vesselCheckedAt={job.vessel_checked_at} />
             <div className="row">
               <button disabled={!!busy}>Save…</button>
               <button type="button" className="ghost" onClick={() => setEditing(false)}>Cancel</button>
@@ -271,7 +276,9 @@ export default function JobFile() {
               ["Processor", job.processor ? job.processor.full_name || job.processor.email : "Unassigned"],
             ]} />
             <Group title="2. Arrival" rows={[
-              ["Carrier", job.carrier], ["Vessel / voyage", [job.vessel, job.voyage].filter(Boolean).join(" / ") || null],
+              ["Carrier", job.carrier], ["Vessel / voyage", job.vessel ? <>{[job.vessel, job.voyage].filter(Boolean).join(" / ")}{" "}
+                <a className="small" href={marineTrafficUrl(job.vessel)} target="_blank" rel="noopener noreferrer">Track on MarineTraffic ↗</a></> : job.voyage],
+              ["Last vessel check", job.vessel_note ? <>{job.vessel_note}{job.vessel_checked_at && <span className="muted small"> · {dateTime(job.vessel_checked_at)}</span>}</> : null],
               ["BL / AWB no.", job.bl_awb_no], ["Booking no.", job.booking_no], ["ETA", dayLabel(job.eta)],
               ["Port of discharge", job.port_of_discharge], ["Warehouse", job.port_of_destination],
               ["Containers", job.containers?.length ? <span className="pre">{job.containers.join("\n")}</span> : null],
@@ -340,6 +347,28 @@ export default function JobFile() {
           </ul>
         )}
       </section>
+
+      {mails.length > 0 && (
+        <section className="card">
+          <h2>Emails to the client</h2>
+          <p className="muted small">Sent automatically when the shipment reaches the steps chosen on the client's page in Clients.</p>
+          <table className="small">
+            <thead><tr><th>Step</th><th>To</th><th>Status</th><th>When</th></tr></thead>
+            <tbody>
+              {mails.map((m) => (
+                <tr key={m.id}>
+                  <td>{STATUS_LABEL[m.step as JobStatus] ?? m.step}</td>
+                  <td>{m.to_email}</td>
+                  <td className={m.status === "failed" ? "error" : m.status === "sent" ? "" : "muted"} title={m.error ?? ""}>
+                    {MAIL_STATUS[m.status]}{m.error && m.status !== "sent" ? `: ${m.error}` : ""}
+                  </td>
+                  <td className="nowrap">{dateTime(m.sent_at ?? m.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       {summary.length > 0 && (
         <section className="card">

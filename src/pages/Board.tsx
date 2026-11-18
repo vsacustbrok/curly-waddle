@@ -106,7 +106,7 @@ const BOARD_FIELDS = [
   "ticket_no", "cro_no", "cro_valid_until", "storage_free_until", "demurrage_free_until", "gatepass_ref", "gatepass_date",
   "tabs_ref", "tabs_at", "yard", "trucker_name", "trucker_plate_no", "delivery_address", "port_of_destination",
   "empty_return_due", "empty_return_date", "lodge_remarks", "lodge_note",
-  "container_size", "reefer", "electric_until", "released_at",
+  "container_size", "reefer", "electric_until", "released_at", "vessel_note", "vessel_checked_at",
 ].join(", ") + ", clients(name), processor:profiles!jobs_processor_id_fkey(full_name,email), scan_results(error_count, warning_count, run_at)";
 
 export default function Board() {
@@ -236,6 +236,9 @@ export default function Board() {
                     <span className="muted small">{pretty(j.service_type)}{j.bl_awb_no ? ` · ${j.bl_awb_no}` : ""}</span>
                     {j.eta && (
                       <span className={"small " + (j.eta < today && STATUSES.indexOf(s) < STATUSES.indexOf("delivered") ? "error" : "muted")}>ETA {j.eta}</span>
+                    )}
+                    {j.vessel_note && STATUSES.indexOf(s) < STATUSES.indexOf("delivered") && (
+                      <span className="small muted vessel-note" title={j.vessel_checked_at ? `Checked ${dateTime(j.vessel_checked_at)}` : undefined}>⚓ {j.vessel_note}</span>
                     )}
                     {s === "gatepass" && j.gatepass_ref && <span className="small kw-gatepass">Gatepass {j.gatepass_ref}</span>}
                     {s === "tabs" && (j.tabs_ref || j.tabs_at) && (

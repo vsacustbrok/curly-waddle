@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { markWords } from "../lib/keywords";
 import BillingSection from "./BillingSection";
@@ -410,7 +410,10 @@ export default function JobFile() {
         </div>
         <p className="muted small">
           Compares the documents with each other: parties, BL number, containers, weights, packages, invoice totals,
-          goods, HS codes, Incoterms, origin, and the SPS clearance against the bill of lading.
+          goods, HS codes, Incoterms, origin, and the SPS clearance against the bill of lading.{" "}
+          <Link to={`/pre-lodgment-audit/${job.id}`}>
+            Pre-lodgment audit{latest?.light ? `: ${{ red: "🔴 do not lodge", yellow: "🟡 review needed", green: "🟢 ready" }[latest.light]}` : ""} →
+          </Link>
         </p>
         {!latest ? <p className="muted">The documents have not been checked yet.</p> : (
           <>

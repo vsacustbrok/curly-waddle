@@ -26,6 +26,14 @@ export default function Team() {
     load();
   }
 
+  async function setBroker(p: Profile, on: boolean) {
+    setError("");
+    const { error } = await supabase.from("profiles").update({ licensed_broker: on }).eq("id", p.id);
+    if (error) setError(error.message);
+    if (p.id === profile!.id) await reload();
+    load();
+  }
+
   return (
     <>
       <h1>Team</h1>
@@ -33,7 +41,7 @@ export default function Team() {
       <section className="card">
         <p className="muted small">New sign-ups appear here as Pending until you give them a role.</p>
         <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Licensed customs broker</th></tr></thead>
           <tbody>
             {people.map((p) => (
               <tr key={p.id} className={p.role === "pending" ? "highlight" : ""}>
@@ -42,6 +50,13 @@ export default function Team() {
                   <select value={p.role} onChange={(e) => setRole(p, e.target.value as Role)}>
                     {ROLES.map((r) => <option key={r} value={r}>{pretty(r)}</option>)}
                   </select>
+                </td>
+                <td>
+                  <label className="check">
+                    <input type="checkbox" checked={!!p.licensed_broker} disabled={p.role === "rider" || p.role === "pending"}
+                      onChange={(e) => setBroker(p, e.target.checked)} />
+                    {" "}Can sign off the Pre-Lodgment Audit
+                  </label>
                 </td>
               </tr>
             ))}

@@ -12,21 +12,32 @@ export const ROLES: Role[] = ["owner", "processor", "dispatcher", "billing", "ri
 
 export const DOC_TYPES = [
   "bill_of_lading", "seaway_bill", "telex_release", "airway_bill",
-  "commercial_invoice", "sales_contract", "purchase_order", "packing_list", "payment_proof",
-  "sps_import_clearance", "permit", "arrival_notice", "entry", "assessment", "release", "delivery_receipt",
+  "commercial_invoice", "sales_contract", "purchase_order", "packing_list", "container_list", "payment_proof",
+  "bank_document", "insurance_certificate",
+  "sps_import_clearance", "mav_certificate", "fda_permit", "peza_permit", "agency_permit", "health_certificate",
+  "phytosanitary_certificate", "halal_certificate", "fumigation_certificate", "certificate_of_origin", "importer_accreditation", "permit",
+  "arrival_notice", "entry", "assessment", "release", "delivery_receipt",
   "billing_statement", "other",
 ] as const;
 /** The document types offered when uploading, in groups, each once. (Billing is done in the Billing section.) */
 export const DOC_GROUPS: [string, string[]][] = [
   ["Shipping documents", ["bill_of_lading", "seaway_bill", "telex_release", "airway_bill"]],
-  ["Commercial documents", ["commercial_invoice", "sales_contract", "purchase_order", "packing_list", "payment_proof"]],
-  ["Permits, customs and release", ["sps_import_clearance", "permit", "arrival_notice", "entry", "assessment", "release", "delivery_receipt"]],
+  ["Commercial documents", ["commercial_invoice", "sales_contract", "purchase_order", "packing_list", "container_list"]],
+  ["Payment, bank and insurance", ["payment_proof", "bank_document", "insurance_certificate"]],
+  ["Permits and clearances", ["sps_import_clearance", "mav_certificate", "fda_permit", "peza_permit", "agency_permit", "importer_accreditation", "permit"]],
+  ["Certificates", ["certificate_of_origin", "health_certificate", "phytosanitary_certificate", "halal_certificate", "fumigation_certificate"]],
+  ["Customs and release", ["arrival_notice", "entry", "assessment", "release", "delivery_receipt"]],
 ];
 /** Document types as the office calls them. */
 export const DOC_LABEL: Record<string, string> = {
   bill_of_lading: "Bill of lading", seaway_bill: "Seaway bill (SWB)", telex_release: "Telex release bill of lading",
   airway_bill: "Airway bill", commercial_invoice: "Commercial invoice", sales_contract: "Sales contract",
   purchase_order: "Purchase order", packing_list: "Packing list", payment_proof: "Proof of payment",
+  container_list: "Container / seal list", bank_document: "Bank document (L/C, D/P, D/A)", insurance_certificate: "Insurance certificate",
+  mav_certificate: "MAV certificate", fda_permit: "FDA permit / registration", peza_permit: "PEZA permit",
+  agency_permit: "Other agency permit (BPS ICC, NTC, DENR, PDEA, FPA, SRA, BAI, BPI)", importer_accreditation: "Importer accreditation (BOC)",
+  certificate_of_origin: "Certificate of origin (Form E, D, AJCEP…)", health_certificate: "Health / veterinary certificate",
+  phytosanitary_certificate: "Phytosanitary certificate", halal_certificate: "Halal certificate", fumigation_certificate: "Fumigation certificate",
   sps_import_clearance: "SPS import clearance", permit: "Permit", arrival_notice: "Arrival notice", entry: "Entry",
   assessment: "Assessment", release: "Release", delivery_receipt: "Delivery receipt", billing_statement: "Billing statement", other: "Other",
 };
@@ -52,6 +63,10 @@ const CHECK_LABEL: Record<string, string> = {
   hs_code_present: "HS code missing", hs_code_match: "HS codes", dangerous_goods_details: "Dangerous goods details",
   dangerous_goods_un_match: "Dangerous goods UN number", volume_match: "Volume (CBM)", incoterm_present: "Incoterm missing",
   incoterm_match: "Incoterms", country_of_origin_match: "Country of origin", signature: "Signature", stamp: "Stamp or seal",
+  completeness: "Required documents", seal_numbers_match: "Seal numbers", consignee_tin_match: "Consignee TIN",
+  freight_amount_match: "Freight", insurance_amount_match: "Insurance", dutiable_value: "Dutiable value", bank_vs_invoice: "Bank document vs invoice",
+  permit_expiry: "Permit expiry", sps_ship_out_margin: "SPS ship-out margin", mav_quantity: "MAV quantity",
+  hs_code_permits: "HS codes vs certificate / permits", hs_description_review: "HS code vs item description",
 };
 export const checkLabel = (check: string) => CHECK_LABEL[check] ?? pretty(check);
 /** "bill_of_lading: file.pdf" -> "Bill of lading: file.pdf" */
@@ -73,7 +88,7 @@ export const dateTime = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : null;
 
 export type Layout = "horizontal" | "vertical";
-export type Profile = { id: string; email: string | null; full_name: string; role: Role; created_at: string; layout?: Layout };
+export type Profile = { id: string; email: string | null; full_name: string; role: Role; created_at: string; layout?: Layout; licensed_broker?: boolean };
 export type Client = {
   id: string; name: string; tin: string | null; address: string | null;
   contact_person: string | null; email: string | null; phone: string | null;
@@ -98,6 +113,8 @@ export type Job = {
   obl_shipping_date: string | null; telex_release_date: string | null;
   final_sad_sent_date: string | null; ssdt_sent_date: string | null;
   processor_id: string | null; notes: string | null;
+  required_docs?: string[]; port_of_entry?: string | null; vasp?: string | null; freight_amount?: number | null;
+  insurance_amount?: number | null; other_charges?: number | null; charges_currency?: string | null; exchange_rate?: number | null;
   created_at: string; updated_at: string;
   clients?: { name: string; payment_terms_days?: number; address?: string | null; tin?: string | null } | null;
   processor?: { full_name: string; email: string | null } | null;
@@ -112,12 +129,16 @@ export type JobDocument = {
   mime_type: string | null; size_bytes: number | null; uploaded_at: string;
   extracted: Record<string, unknown> | null; extracted_at: string | null; extract_error: string | null;
 };
-export type Issue = { severity: "error" | "warning"; check: string; message: string; values: { source: string; value: unknown }[] };
+export type Issue = {
+  severity: "error" | "warning"; check: string; message: string; values: { source: string; value: unknown }[];
+  /** From the pre-lodgment audit: stage 0-4, a plain fix, and the key a broker's review is attached to. */
+  stage?: number; fix?: string; key?: string;
+};
 export type Match = { check: string; value: unknown; sources: string[] };
 export type ScanResult = {
   id: string; job_id: string; run_at: string; docs_scanned: number;
   error_count: number; warning_count: number; issues: Issue[]; matches: Match[];
-  duration_ms: number | null;
+  duration_ms: number | null; light?: "red" | "yellow" | "green" | null;
 };
 export type StatusHistory = {
   id: number; from_status: JobStatus | null; to_status: JobStatus; changed_by_name: string | null; changed_at: string;

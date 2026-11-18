@@ -4,11 +4,12 @@ import { supabase } from "./supabase";
 
 export const MAX_BYTES = 10 * 1024 * 1024;
 export const MAX_FILES = 15;
-const MIME_OK = ["application/pdf", "image/png", "image/jpeg"];
+const MIME_OK = ["application/pdf", "image/png", "image/jpeg", "text/csv"];
+const EXCEL = /\.(xlsx|xlsm)$/i;
 
 /** Why a file cannot be uploaded, or null if it is fine. */
 export function fileProblem(file: File): string | null {
-  if (!MIME_OK.includes(file.type)) return `${file.name}: only PDF files and pictures (PNG, JPG, screenshots) are accepted`;
+  if (!MIME_OK.includes(file.type)) return `${file.name}: only PDF files, pictures (PNG, JPG, screenshots) and Excel sheets are accepted`;
   if (file.size > MAX_BYTES) return `${file.name}: larger than 10 MB`;
   if (file.size === 0) return `${file.name}: the file is empty`;
   return null;
@@ -19,6 +20,24 @@ export function fileProblem(file: File): string | null {
  * the format the document reader and storage take. PDF, PNG and JPG pass through unchanged.
  */
 export async function toUploadable(file: File): Promise<File> {
+  // Excel sheets become CSV text, which the document reader can read; every sheet is kept.
+  if (EXCEL.test(file.name)) {
+    try {
+      const { default: readXlsx, readSheetNames } = await import("read-excel-file");
+      const csv: string[] = [];
+      for (const sheet of await readSheetNames(file)) {
+        const rows = await readXlsx(file, { sheet });
+        const cell = (v: unknown) => {
+          const t = v instanceof Date ? v.toISOString().slice(0, 10) : v == null ? "" : String(v);
+          return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+        };
+        csv.push(`# Sheet: ${sheet}`, ...rows.map((r) => r.map(cell).join(",")), "");
+      }
+      return new File([csv.join("\n")], file.name.replace(EXCEL, ".csv"), { type: "text/csv" });
+    } catch {
+      return file; // not a readable workbook; fileProblem explains
+    }
+  }
   if (MIME_OK.includes(file.type) || !file.type.startsWith("image/")) return file;
   try {
     const bmp = await createImageBitmap(file);

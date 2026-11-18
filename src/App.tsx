@@ -23,6 +23,19 @@ const Soa = lazy(() => import("./pages/Soa"));
 const FormPrint = lazy(() => import("./pages/FormPrint"));
 const Riders = lazy(() => import("./pages/Riders"));
 
+/** Lets each person choose the menu across the top (horizontal) or down the side (vertical). */
+function LayoutToggle() {
+  const { profile, setLayout } = useAuth();
+  const vertical = profile?.layout === "vertical";
+  return (
+    <button type="button" className="ghost small layout-toggle" aria-pressed={vertical}
+      title={vertical ? "Switch to the horizontal view: menu across the top, steps side by side" : "Switch to the vertical view: menu on the left, steps stacked"}
+      onClick={async () => { const err = await setLayout(vertical ? "horizontal" : "vertical"); if (err) alert(`Could not save your view: ${err}`); }}>
+      {vertical ? "⇆ Horizontal view" : "⇅ Vertical view"}
+    </button>
+  );
+}
+
 /** Menu link to the deadlines page, with how many are overdue or due today (refreshed at most once a minute). */
 function AlertsLink() {
   const [urgent, setUrgent] = useState(0);
@@ -74,6 +87,7 @@ export default function App() {
           <nav><NavLink to="/riders">Rider itinerary</NavLink></nav>
           <span className="who">
             {profile.full_name || profile.email} <span className="badge">{pretty(role)}</span>
+            <LayoutToggle />
             <button className="ghost small" onClick={() => supabase.auth.signOut()}>Sign out</button>
           </span>
         </header>
@@ -110,7 +124,8 @@ export default function App() {
         </nav>
         <span className="who">
           {profile.full_name || profile.email} <span className="badge">{pretty(role)}</span>
-          <button className="ghost small" onClick={() => supabase.auth.signOut()}>Sign out</button>
+          <LayoutToggle />
+            <button className="ghost small" onClick={() => supabase.auth.signOut()}>Sign out</button>
         </span>
       </header>
       <main>

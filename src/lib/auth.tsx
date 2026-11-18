@@ -1,10 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import type { Profile } from "./types";
+import type { Layout, Profile } from "./types";
 
-type AuthState = { session: Session | null; profile: Profile | null; loading: boolean; reload: () => Promise<void> };
-const Ctx = createContext<AuthState>({ session: null, profile: null, loading: true, reload: async () => {} });
+type AuthState = {
+  session: Session | null; profile: Profile | null; loading: boolean; reload: () => Promise<void>;
+  /** Switch this person's layout at once and save it with their login. Returns an error message, if any. */
+  setLayout: (layout: Layout) => Promise<string | null>;
+};
+const Ctx = createContext<AuthState>({ session: null, profile: null, loading: true, reload: async () => {}, setLayout: async () => null });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -43,7 +47,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, [loadProfile]);
 
-  return <Ctx.Provider value={{ session, profile, loading, reload: () => loadProfile(session) }}>{children}</Ctx.Provider>;
+  const setLayout = useCallback(async (layout: Layout) => {
+    if (!profile) return null;
+    const before = profile;
+    const next = { ...profile, layout };
+    setProfile(next);
+    try { sessionStorage.setItem(PROFILE_KEY, JSON.stringify(next)); } catch { /* not saved; fine */ }
+    const { error } = await supabase.from("profiles").update({ layout }).eq("id", profile.id);
+    if (error) {
+      setProfile(before);
+      try { sessionStorage.setItem(PROFILE_KEY, JSON.stringify(before)); } catch { /* fine */ }
+      return error.message;
+    }
+    return null;
+  }, [profile]);
+
+  // The chosen layout styles the whole page.
+  useEffect(() => {
+    document.body.classList.toggle("layout-vertical", profile?.layout === "vertical");
+  }, [profile?.layout]);
+
+  return <Ctx.Provider value={{ session, profile, loading, reload: () => loadProfile(session), setLayout }}>{children}</Ctx.Provider>;
 }
 export const useAuth = () => useContext(Ctx);
 

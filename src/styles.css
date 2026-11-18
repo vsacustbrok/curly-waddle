@@ -372,3 +372,28 @@ table td { font-weight: 550; }
   .trip-card .grid { grid-template-columns: 1fr 1fr; }
   .tabs button { flex: 1; padding: 10px 6px; }
 }
+
+/* Vertical view: menu down the left side, status board steps stacked, forms one field per row. */
+body.layout-vertical #root { display: grid; grid-template-columns: 230px minmax(0, 1fr); min-height: 100vh; align-items: start; }
+body.layout-vertical .topbar {
+  position: sticky; top: 0; height: 100vh; overflow-y: auto; flex-direction: column; flex-wrap: nowrap;
+  align-items: stretch; gap: 16px; border-bottom: 0; border-right: 1px solid var(--line); padding: 16px 12px;
+}
+body.layout-vertical .topbar .brand { flex-wrap: wrap; }
+body.layout-vertical .topbar nav { flex-direction: column; gap: 2px; flex: 1 0 auto; }
+body.layout-vertical .topbar nav a { padding: 8px 10px; border-bottom: 0; border-left: 3px solid transparent; border-radius: 0 6px 6px 0; }
+body.layout-vertical .topbar nav a.active { border-left-color: var(--accent); background: #eef3f9; }
+body.layout-vertical .who { flex-direction: column; align-items: stretch; gap: 6px; }
+body.layout-vertical .who .badge { align-self: flex-start; }
+body.layout-vertical main { max-width: 1400px; width: 100%; }
+body.layout-vertical .board { flex-direction: column; overflow-x: visible; align-items: stretch; }
+body.layout-vertical .column { flex: none; min-height: 0; }
+body.layout-vertical .column > .jobcard { display: inline-flex; width: calc(25% - 6px); margin: 0 6px 6px 0; vertical-align: top; }
+body.layout-vertical .trip-card .grid, body.layout-vertical form > .grid { grid-template-columns: 1fr; }
+body.layout-vertical .tiles, body.layout-vertical .tiles:has(.tile:nth-child(4)) { grid-template-columns: 1fr; }
+@media (max-width: 1100px) { body.layout-vertical .column > .jobcard { width: calc(50% - 6px); } }
+@media (max-width: 760px) {
+  body.layout-vertical #root { display: block; }
+  body.layout-vertical .topbar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  body.layout-vertical .column > .jobcard { width: 100%; margin-right: 0; }
+}

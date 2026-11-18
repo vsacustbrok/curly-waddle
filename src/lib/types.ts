@@ -72,7 +72,8 @@ export const BL_RELEASE_LABEL: Record<BlReleaseType, string> = {
 export const dateTime = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : null;
 
-export type Profile = { id: string; email: string | null; full_name: string; role: Role; created_at: string };
+export type Layout = "horizontal" | "vertical";
+export type Profile = { id: string; email: string | null; full_name: string; role: Role; created_at: string; layout?: Layout };
 export type Client = {
   id: string; name: string; tin: string | null; address: string | null;
   contact_person: string | null; email: string | null; phone: string | null;

@@ -110,7 +110,7 @@ export const EXTRACTION_SCHEMA = {
 
 const SYSTEM = `You read import shipping documents for a Philippine customs brokerage and transcribe their fields into JSON.
 
-A file may hold one document or several bound together (for example a bill of lading, a commercial invoice, a packing list and certificates in one scan). Return one entry in "documents" for each distinct document, in the order they appear, and set doc_type_detected from what the document itself is, whatever the file is named. Fill each entry only from that document's own pages: never carry a value from the bill of lading into the invoice entry or the other way round. Use "other" for certificates, loading records and anything else that is not on the list.
+A file may hold one document or several bound together (for example a bill of lading, a commercial invoice, a packing list and certificates in one scan). Return one entry in "documents" for each distinct document, in the order they appear, and set doc_type_detected from what the document itself is, whatever the file is named. Fill each entry only from that document's own pages: never carry a value from the bill of lading into the invoice entry or the other way round. Use "other" for anything that is not on the list below, such as loading records or weighbridge tickets.
 
 Transcribe exactly what the document shows. Do not infer, normalise or correct values, and do not copy a value from one field into another. When a text field is not on the document, return an empty string; for a missing number return null; for a missing list return an empty array. The brokerage cross-checks these values between documents, so a guessed value is worse than a null.
 
@@ -370,7 +370,7 @@ export const DOC_TYPES = [
   "phytosanitary_certificate", "halal_certificate", "fumigation_certificate", "certificate_of_origin",
   "importer_accreditation", "arrival_notice", "permit", "entry", "assessment", "release", "delivery_receipt", "other",
 ];
-/** The reader's answer as one of DOC_TYPES ("Sea Waybill" → seaway_bill); anything unknown is "other". */
+/** The reader's answer as one of DOC_TYPES ("Sea Waybill" -> seaway_bill); anything unknown is "other". */
 export function documentType(v: unknown): string {
   const t = String(v ?? "").trim().toLowerCase().replace(/[^a-z]+/g, "_").replace(/^_|_$/g, "");
   if (DOC_TYPES.includes(t)) return t;

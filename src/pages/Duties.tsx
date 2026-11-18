@@ -231,6 +231,7 @@ export default function Duties() {
                 {r.dvPhp > 0 && <span className="muted small">Schedule for this value: {money(ipcFee(r.dvPhp, settings))}</span>}</label>
               <label>IRS<input inputMode="decimal" value={inp.irs} onChange={(e) => set({ irs: numIn(e.target.value) })} /></label>
               <label>Bank charges<input inputMode="decimal" value={inp.bank || ""} onChange={(e) => set({ bank: numIn(e.target.value) })} /></label>
+              <label>CSF (container security fee)<input inputMode="decimal" value={inp.csf || ""} onChange={(e) => set({ csf: numIn(e.target.value) })} placeholder="0.00" /></label>
             </div>
           </>
         )}
@@ -294,7 +295,7 @@ export default function Duties() {
               {r.excise > 0 && <tr><td>Excise tax</td><td className="num">{money(r.excise)}</td></tr>}
               <tr><td>{formal ? "IPF / IPC" : "Import processing charge"}</td><td className="num">{money(r.ipf)}</td></tr>
               {!formal && <><tr><td>BIR documentary stamp tax</td><td className="num">{money(r.birDst)}</td></tr><tr><td>Customs documentary stamp</td><td className="num">{money(r.customsDs)}</td></tr></>}
-              {formal && <><tr><td>Sub total</td><td className="num">{money(r.subTotal)}</td></tr><tr><td>IRS</td><td className="num">{money(r.irs)}</td></tr></>}
+              {formal && <><tr><td>Sub total</td><td className="num">{money(r.subTotal)}</td></tr><tr><td>IRS</td><td className="num">{money(r.irs)}</td></tr>{r.csf > 0 && <tr><td>CSF</td><td className="num">{money(r.csf)}</td></tr>}</>}
               {r.safeguard > 0 && <tr><td>Safeguard duty, chicken</td><td className="num">{money(r.safeguard)}</td></tr>}
               <tr className="total grand"><td>{formal ? "Total global tax ₱" : "Total tax amount ₱"}</td><td className="num">{money(r.total)}</td></tr>
             </tbody>
@@ -336,6 +337,7 @@ export default function Duties() {
                 <tr><td>VAT</td><td className="num">{money(t.vat)}</td></tr>
                 <tr className="total"><td>Total item tax</td><td className="num">{money(t.item)}</td></tr>
                 <tr><td>IPC</td><td className="num">{money(t.ipc)}</td></tr>
+                {t.csf > 0 && <tr><td>CSF</td><td className="num">{money(t.csf)}</td></tr>}
                 {t.sg > 0 && <tr><td>Safeguard duty</td><td className="num">{money(t.sg)}</td></tr>}
                 <tr><td>CDS</td><td className="num">{money(t.cds)}</td></tr>
                 <tr><td>IRS</td><td className="num">{money(t.irs)}</td></tr>
@@ -352,6 +354,7 @@ export default function Duties() {
         {canBill && <button type="button" className="ghost" onClick={addToBilling} disabled={busy || !(r.total > 0)}>Add to billing</button>}
         <button type="button" className="ghost" onClick={() => window.print()}>Print</button>
         {formal && <button type="button" className="ghost" onClick={printTsad}>Print TSAD</button>}
+        {job && saved && formal && <Link className="button-like" to={`/jobs/${job.id}/pre-sad`}>Pre-SAD draft →</Link>}
         <button type="button" className="ghost" onClick={() => { if (confirm("Clear every field?")) { setInp(defaultInput(settings)); setMsg(""); } }}>Clear</button>
         {msg && <span className="ok-text">{msg}</span>}
       </div>

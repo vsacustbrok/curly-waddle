@@ -26,6 +26,7 @@ const Riders = lazy(() => import("./pages/Riders"));
 const PreLodgmentAudit = lazy(() => import("./pages/PreLodgmentAudit"));
 const Duties = lazy(() => import("./pages/Duties"));
 const DutyRates = lazy(() => import("./pages/DutyRates"));
+const PreSad = lazy(() => import("./pages/PreSad"));
 
 /** Lets each person choose the menu across the top (horizontal) or down the side (vertical). */
 function LayoutToggle() {
@@ -155,6 +156,7 @@ export default function App() {
           <Route path="/duties" element={<Duties />} />
           <Route path="/duties/:jobId" element={<Duties />} />
           <Route path="/duty-rates" element={<DutyRates />} />
+          <Route path="/jobs/:id/pre-sad" element={<PreSad />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/team" element={role === "owner" ? <Team /> : <Navigate to="/" />} />
           <Route path="/security" element={role === "owner" ? <Security /> : <Navigate to="/" />} />

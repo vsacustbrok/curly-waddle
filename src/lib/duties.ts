@@ -22,8 +22,21 @@ export type DutySettings = {
   /** Safeguard duty on chicken: trigger price in USD per kg. */
   chickenTriggerPrice: number;
   porkInRate: number; porkOutRate: number; beefInRate: number | null; beefOutRate: number | null;
+  /** Office defaults for the Pre-SAD draft. */
+  sad?: SadDefaults;
   /** Informal entry (express couriers). */
   informal: { brokerageFee: number; birDst: number; customsDs: number; ipc: { upto: number | null; fee: number }[] };
+};
+
+export type SadDefaults = {
+  brokerName: string; brokerTin: string; brokerAddress: string;
+  officeCode: string; officeName: string; declaration: string; procedure: string;
+  termsOfPayment: string; bankCode: string; bankName: string; branch: string; locationOfGoods: string;
+};
+export const DEFAULT_SAD: SadDefaults = {
+  brokerName: "", brokerTin: "", brokerAddress: "",
+  officeCode: "P02B", officeName: "Manila Intl Container Port", declaration: "4 4", procedure: "4000 0N1",
+  termsOfPayment: "01 - Basic", bankCode: "", bankName: "", branch: "", locationOfGoods: "",
 };
 
 export const DEFAULT_SETTINGS: DutySettings = {
@@ -72,6 +85,8 @@ export type DutyInput = {
   arrastre: number | null;
   wharfage: number | null;
   cds: number; ipf: number; irs: number; bank: number;
+  /** Container security fee in PHP (formal entry); not in the office calculator, added from the E2M SAD. */
+  csf?: number;
   exempt: "none" | "both" | "duty" | "vat";
   exemptRef: string;
 };
@@ -85,7 +100,7 @@ export type DutyResult = {
   items: ItemResult[];
   fob: number; insurance: number; dvFx: number; dvPhp: number;
   duty: number; dutyFull: number; excise: number;
-  brokerage: number; brokerageTier: number; arrastre: number; wharfage: number; cds: number; ipf: number; bank: number; irs: number;
+  brokerage: number; brokerageTier: number; arrastre: number; wharfage: number; cds: number; ipf: number; bank: number; irs: number; csf: number;
   birDst: number; customsDs: number;
   landedCost: number; vat: number; vatFull: number; safeguard: number;
   subTotal: number; total: number;
@@ -189,7 +204,7 @@ export function compute(inp: DutyInput, s: DutySettings = DEFAULT_SETTINGS): Dut
     const vat = inp.exempt === "both" || inp.exempt === "vat" ? 0 : vatFull;
     return {
       items: itemResults, fob, insurance: insuranceTotal, dvFx, dvPhp: dv, duty: dutyI, dutyFull, excise,
-      brokerage: bf, brokerageTier: -1, arrastre: 0, wharfage: 0, cds: 0, ipf: ipc, bank: 0, irs: 0, birDst: dst, customsDs: cdsI,
+      brokerage: bf, brokerageTier: -1, arrastre: 0, wharfage: 0, cds: 0, ipf: ipc, bank: 0, irs: 0, csf: 0, birDst: dst, customsDs: cdsI,
       landedCost, vat, vatFull, safeguard: 0, subTotal: r2(dutyI + vat + excise + ipc + dst + cdsI),
       total: r2(dutyI + vat + excise + ipc + dst + cdsI), conditions, missingRates,
     };
@@ -206,8 +221,8 @@ export function compute(inp: DutyInput, s: DutySettings = DEFAULT_SETTINGS): Dut
   const subTotal = duty + vat + excise + num(inp.ipf);
   return {
     items: itemResults, fob, insurance: insuranceTotal, dvFx, dvPhp, duty, dutyFull, excise,
-    brokerage: bf.fee, brokerageTier: bf.tier, arrastre, wharfage, cds: num(inp.cds), ipf: num(inp.ipf), bank: num(inp.bank), irs: num(inp.irs),
-    birDst: 0, customsDs: 0, landedCost, vat, vatFull, safeguard, subTotal, total: subTotal + num(inp.irs) + safeguard, conditions, missingRates,
+    brokerage: bf.fee, brokerageTier: bf.tier, arrastre, wharfage, cds: num(inp.cds), ipf: num(inp.ipf), bank: num(inp.bank), irs: num(inp.irs), csf: num(inp.csf),
+    birDst: 0, customsDs: 0, landedCost, vat, vatFull, safeguard, subTotal, total: subTotal + num(inp.irs) + safeguard + num(inp.csf), conditions, missingRates,
   };
 }
 
@@ -221,8 +236,9 @@ export function tsadLines(r: DutyResult, exemptVat: boolean, s: DutySettings = D
   const irs = r2(r.irs), sg = r2(r.safeguard);
   const cdsFd = Math.max(r2(stamp - irs), 0);
   const item = r2(duty + vat + excise);
-  const glob = r2(oth + cdsFd + irs + sg);
-  return { dv, bank, duty, bf, whf, arr, stamp, oth, excise, tot, vat, vatFull, sg, cud: duty, item, ipc: oth, cds: cdsFd, irs, glob, grand: r2(item + glob) };
+  const csf = r2(r.csf);
+  const glob = r2(oth + cdsFd + irs + sg + csf);
+  return { dv, bank, duty, bf, whf, arr, stamp, oth, excise, tot, vat, vatFull, sg, cud: duty, item, ipc: oth, csf, cds: cdsFd, irs, glob, grand: r2(item + glob) };
 }
 
 export const blankItem = (): Item => ({ description: "", ahtn: "", rate: null, fob: 0, quota: "none", chickenNetKg: null, excise: 0 });
@@ -230,7 +246,7 @@ export const blankItem = (): Item => ({ description: "", ahtn: "", rate: null, f
 export function defaultInput(s: DutySettings = DEFAULT_SETTINGS): DutyInput {
   return {
     mode: "formal", currency: "USD", exchangeRate: 0, items: [blankItem()], freight: 0, insurancePct: 0, insuranceAmount: 0,
-    otherCharges: 0, container: "40ft", containers: 1, arrastre: null, wharfage: null, cds: s.cds, ipf: s.ipf, irs: s.irs, bank: 0,
+    otherCharges: 0, container: "40ft", containers: 1, arrastre: null, wharfage: null, cds: s.cds, ipf: s.ipf, irs: s.irs, bank: 0, csf: 0,
     exempt: "none", exemptRef: "",
   };
 }

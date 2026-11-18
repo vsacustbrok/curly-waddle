@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { DEFAULT_SETTINGS, normAhtn, showAhtn, type DutySettings } from "../lib/duties";
+import { DEFAULT_SAD, DEFAULT_SETTINGS, normAhtn, showAhtn, type DutySettings, type SadDefaults } from "../lib/duties";
 import { loadDutySettings, type TariffRate } from "./Duties";
 
 const FTA_FORMS = ["Form E (ACFTA)", "ATIGA Form D", "AJCEP", "AKFTA", "RCEP", "PJEPA"];
@@ -167,6 +167,16 @@ export default function DutyRates() {
                 <label>{c === "lcl" ? "LCL" : c === "40ft" ? "40-foot" : "20-foot"} arrastre<input inputMode="decimal" value={settings.port[c].arr} onChange={(e) => setPort(c, "arr", e.target.value)} /></label>
                 <label>wharfage<input inputMode="decimal" value={settings.port[c].whf} onChange={(e) => setPort(c, "whf", e.target.value)} /></label>
               </div>
+            ))}
+          </div>
+        </fieldset>
+        <h3>Pre-SAD office defaults</h3>
+        <fieldset disabled={!owner}>
+          <div className="grid">
+            {([["brokerName", "Broker name"], ["brokerTin", "Broker TIN"], ["brokerAddress", "Broker address"], ["officeCode", "Office code"], ["officeName", "Office name"],
+              ["declaration", "Declaration (box 1)"], ["procedure", "Procedure (box 37)"], ["termsOfPayment", "Terms of payment"], ["bankCode", "Bank code"], ["bankName", "Bank name"],
+              ["branch", "Branch"], ["locationOfGoods", "Location of goods"]] as [keyof SadDefaults, string][]).map(([k, label]) => (
+              <label key={k}>{label}<input value={(settings.sad ?? DEFAULT_SAD)[k]} onChange={(e) => setSettings({ ...settings, sad: { ...DEFAULT_SAD, ...(settings.sad ?? {}), [k]: e.target.value } })} /></label>
             ))}
           </div>
         </fieldset>

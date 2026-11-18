@@ -459,3 +459,52 @@ tr.clickable { cursor: pointer; }
   body.print-tsad .duties .duty-result { display: none !important; }
   body:not(.print-tsad) .duties .tsad { break-before: page; }
 }
+
+/* Pre-SAD draft (E2M SAD layout) */
+.sad-page { background: #fff; color: #111; border: 1px solid var(--line); margin: 0 auto 18px; max-width: 210mm; padding: 6mm; font-size: 11px; line-height: 1.3; font-weight: 400; }
+.sad-page b { font-weight: 600; font-size: 9.5px; color: #333; margin-right: 4px; }
+.sad-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #111; padding-bottom: 3px; margin-bottom: 4px; gap: 8px; flex-wrap: wrap; }
+.sad-head strong { font-size: 13px; margin-right: 10px; }
+.sad-draft { color: #c62828; font-weight: 800; letter-spacing: .04em; border: 1.5px solid #c62828; padding: 0 6px; }
+.sad-row { display: flex; border: 1px solid #111; border-top: none; }
+.sad-head + .sad-row { border-top: 1px solid #111; }
+.sad-cell { border-right: 1px solid #111; padding: 3px 5px; min-width: 0; }
+.sad-cell:last-child { border-right: none; }
+.sad-cell.grow { flex: 1; }
+.sad-cell.w-side { width: 18mm; flex: none; }
+.sad-cell.w-sm { width: 16mm; flex: none; }
+.sad-cell.w-md { width: 34mm; flex: none; }
+.sad-cell.w-lg { width: 78mm; flex: none; }
+.sad-cell.w-xl { width: 96mm; flex: none; }
+.sad-cell.center { text-align: center; }
+.sad-page .v { font-weight: 600; font-size: 11.5px; color: #000; }
+.sad-page .v.big { font-size: 15px; }
+.sad-page .pre { white-space: pre-line; }
+.sad-split { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+.sad-split > span { flex: 1; min-width: 0; }
+.sad-tin { float: right; font-size: 10px; }
+.sad-l { margin: 1px 0; }
+.sad-tax { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+.sad-tax th { text-align: left; font-weight: 600; color: #333; border-bottom: 1px solid #999; padding: 1px 3px; }
+.sad-tax td { padding: 1px 3px; font-weight: 600; }
+.sad-tax tr.tot td { border-top: 1px solid #999; }
+.sad-acct { margin-top: 4px; }
+.sad-acct div { display: flex; justify-content: space-between; gap: 6px; }
+.sad-53 { display: grid; grid-template-columns: auto 1fr auto 1fr auto 1fr; gap: 6px 10px; margin-top: 6px; align-items: baseline; }
+.sad-53 span:not(.v) { font-weight: 700; font-size: 10.5px; }
+.sad-53 .v { text-align: right; border-bottom: 1px solid #999; }
+.sad-fd { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; margin-top: 6px; }
+.sad-fd .v { text-align: right; }
+.sad-fd .line { border-top: 1px solid #111; }
+.sad-fd .grand { font-weight: 800; font-size: 13px; }
+.sad-foot { margin-top: 8px; font-size: 10px; color: #c62828; font-weight: 600; }
+@media (max-width: 760px) { .sad-page { overflow-x: auto; } .sad-row { min-width: 720px; } }
+@media print {
+  @page { size: A4; margin: 8mm; }
+  .presad .no-print { display: none !important; }
+  .presad .sad-page { border: none; padding: 0; margin: 0; max-width: none; break-after: page; }
+  .presad .sad-page:last-child { break-after: auto; }
+}
+.sad-center { text-align: center; }
+.sad-kv { display: grid; grid-template-columns: auto 1fr; gap: 1px 6px; margin-top: 3px; align-items: baseline; }
+.sad-cell.w-md { width: 40mm; }

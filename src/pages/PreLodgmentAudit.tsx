@@ -546,7 +546,7 @@ function StepSignOff({ job, docs, scan, warnings, errors, reviewed, broker, stal
       <section className="card">
         <div className="row spread wrap">
           <h2>Duties and taxes</h2>
-          <Link className="button-like" to={`/duties/${job.id}`}>Compute duties and taxes →</Link>
+          <span className="row"><Link className="button-like" to={`/duties/${job.id}`}>Compute duties and taxes →</Link><Link className="ghost-link" to={`/jobs/${job.id}/pre-sad`}>Pre-SAD draft</Link></span>
         </div>
         <p className="muted small">Opens the office computation with this shipment's invoice lines (one line per item), freight, insurance, exchange rate and containers filled in.</p>
       </section>

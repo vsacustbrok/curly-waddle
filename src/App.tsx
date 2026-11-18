@@ -7,6 +7,7 @@ import { loadAlerts } from "./lib/alerts";
 import Login from "./pages/Login";
 import Board from "./pages/Board";
 import Dictation from "./pages/Dictation";
+import { NewVersionBanner } from "./lib/version";
 
 // Every other screen is downloaded only when it is first opened, so the first load stays small.
 const JobNew = lazy(() => import("./pages/JobNew"));
@@ -92,6 +93,7 @@ export default function App() {
           </span>
         </header>
         <main>
+          <NewVersionBanner />
           <Suspense fallback={<p className="muted">Loading…</p>}>
             <Routes>
               <Route path="/riders" element={<Riders />} />
@@ -129,6 +131,7 @@ export default function App() {
         </span>
       </header>
       <main>
+          <NewVersionBanner />
         <Suspense fallback={<p className="muted">Loading…</p>}>
         <Routes>
           <Route path="/" element={<Board />} />

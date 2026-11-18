@@ -397,3 +397,7 @@ body.layout-vertical .tiles, body.layout-vertical .tiles:has(.tile:nth-child(4))
   body.layout-vertical .topbar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
   body.layout-vertical .column > .jobcard { width: 100%; margin-right: 0; }
 }
+
+.update-banner { position: sticky; top: 0; z-index: 20; display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap;
+  background: var(--accent); color: #fff; padding: 8px 14px; border-radius: 8px; margin-bottom: 12px; font-weight: 600; }
+.update-banner button { background: #fff; color: var(--accent); }

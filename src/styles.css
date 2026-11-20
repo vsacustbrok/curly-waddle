@@ -537,3 +537,22 @@ tr.clickable { cursor: pointer; }
 .track-facts dt { font-size: .75rem; color: var(--muted); }
 .track-facts dd { margin: 0; overflow-wrap: anywhere; }
 @media (max-width: 480px) { .track-steps .lbl { font-size: .56rem; letter-spacing: -.2px; } .track-main { padding: 12px; } }
+
+/* Board: drag a card onto another step */
+.jobcard[draggable="true"] { cursor: grab; }
+.jobcard.dragging { opacity: .45; }
+.jobcard.moving { opacity: .6; pointer-events: none; }
+.column.drop-ok { outline: 2px dashed var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 6%, var(--card)); }
+.column.drop-over { outline-style: solid; background: color-mix(in srgb, var(--accent) 14%, var(--card)); }
+.column.drop-no { opacity: .45; }
+.card-move { display: flex; flex-direction: column; align-items: flex-end; }
+.move-menu { display: flex; flex-direction: column; align-self: stretch; margin-top: 4px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 2px; }
+.move-menu button { background: none; border: none; color: var(--text); text-align: left; padding: 8px 10px; border-radius: 6px; }
+.move-menu button:hover, .move-menu button:focus-visible { background: var(--bg); }
+.move-done { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+/* With a mouse, the Move button appears when the card is pointed at or focused; on touch screens it always shows. */
+@media (hover: hover) and (pointer: fine) {
+  .jobcard .card-move { visibility: hidden; }
+  .jobcard:hover .card-move, .jobcard:focus-within .card-move, .card-move:has([aria-expanded="true"]) { visibility: visible; }
+}

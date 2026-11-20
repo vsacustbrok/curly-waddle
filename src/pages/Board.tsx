@@ -4,7 +4,7 @@ import { fetchAll, supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { alertsFor } from "../lib/alerts";
 import { matchesSearch, searchAllYears, searchText, type FoundJob } from "../lib/search";
-import { STATUSES, STATUS_LABEL, dateTime, dayLabel, pretty, type Job, type Role, type JobStatus } from "../lib/types";
+import { STATUSES, STATUS_LABEL, allowedNextStatuses, dateTime, dayLabel, pretty, type Job, type Role, type JobStatus } from "../lib/types";
 
 // The stages each role acts on, highlighted on their board.
 const FOCUS: Record<Role, JobStatus[]> = {
@@ -174,6 +174,37 @@ export default function Board() {
     setDownloading(null);
   }
   const openList = open ? inColumn(open) : [];
+
+  // Drag a card onto another step to move the shipment. Only the moves the person's role allows are
+  // offered (the database checks the same rules). Phones use the card's "Move" button instead.
+  const colOf = (st: JobStatus): JobStatus => (st === "released" ? "delivered" : st);
+  const targetsFor = (j: BoardJob) => allowedNextStatuses(role, colOf(j.status)).filter((t) => t !== colOf(j.status));
+  const [drag, setDrag] = useState<BoardJob | null>(null);
+  const [over, setOver] = useState<JobStatus | null>(null);
+  const [moving, setMoving] = useState<string | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [moved, setMoved] = useState<{ job: BoardJob; from: JobStatus; to: JobStatus } | null>(null);
+  const dragTargets = useMemo(() => new Set(drag ? targetsFor(drag) : []), [drag]); // eslint-disable-line react-hooks/exhaustive-deps
+  const keep = (rows: BoardJob[]) => {
+    try { sessionStorage.setItem(BOARD_KEY, JSON.stringify({ since: `${new Date().getFullYear()}-01-01`, jobs: rows })); } catch { /* fine */ }
+  };
+  async function moveTo(j: BoardJob, to: JobStatus, undoing = false) {
+    const from = j.status;
+    if (colOf(from) === to) return;
+    if (!undoing && to === "billed" && !confirm(`Mark ${j.job_no} as Billed?`)) return;
+    if (!undoing && STATUSES.indexOf(to) < STATUSES.indexOf(colOf(from)) && !confirm(`Move ${j.job_no} back from ${STATUS_LABEL[colOf(from)]} to ${STATUS_LABEL[to]}?`)) return;
+    setError(""); setMoving(j.id); setMenuFor(null);
+    setJobs((rows) => rows.map((r) => (r.id === j.id ? { ...r, status: to } : r))); // shows at once
+    const { error } = await supabase.from("jobs").update({ status: to }).eq("id", j.id);
+    setMoving(null);
+    if (error) {
+      setJobs((rows) => rows.map((r) => (r.id === j.id ? { ...r, status: from } : r)));
+      setError(`${j.job_no} could not be moved: ${error.message}`);
+      return;
+    }
+    setJobs((rows) => { keep(rows); return rows; });
+    setMoved(undoing ? null : { job: { ...j, status: to }, from, to });
+  }
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -214,6 +245,15 @@ export default function Board() {
       )}
       <p className="muted small">{new Date().getFullYear()} shipments and any not lodged yet. Earlier years are under <Link to="/shipments">Shipments</Link>.</p>
       {error && <p className="error">{error}</p>}
+      {moved && (
+        <p className="ok move-done" role="status">
+          {moved.job.job_no} moved to {STATUS_LABEL[colOf(moved.to)]}.{" "}
+          {allowedNextStatuses(role, colOf(moved.to)).includes(colOf(moved.from)) && (
+            <button type="button" className="link" onClick={() => moveTo(moved.job, colOf(moved.from), true)}>Undo</button>
+          )}
+          <button type="button" className="link" aria-label="Close" onClick={() => setMoved(null)}>✕</button>
+        </p>
+      )}
       {loading ? <p className="muted">Loading…</p> : jobs.length === 0 ? (
         <p className="muted">No shipments yet.{(role === "owner" || role === "processor") && <> <Link to="/jobs/new">Create the first shipment</Link>.</>}</p>
       ) : (
@@ -221,7 +261,13 @@ export default function Board() {
           {columns.map((s) => {
             const list = inColumn(s);
             return (
-              <section key={s} className={"column col-" + s + (FOCUS[role].includes(s) ? " focus" : "")}>
+              <section key={s}
+                className={"column col-" + s + (FOCUS[role].includes(s) ? " focus" : "")
+                  + (drag ? (dragTargets.has(s) ? " drop-ok" : colOf(drag.status) === s ? "" : " drop-no") : "") + (over === s && drag ? " drop-over" : "")}
+                onDragOver={(e) => { if (drag && dragTargets.has(s)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (over !== s) setOver(s); } }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver((o) => (o === s ? null : o)); }}
+                onDrop={(e) => { e.preventDefault(); const j = drag; setDrag(null); setOver(null); if (j && dragTargets.has(s)) moveTo(j, s); }}
+                aria-label={`${STATUS_LABEL[s]} step`}>
                 <div className="col-head">
                   <h2><button type="button" className="col-title" onClick={() => setOpen(s)} title={`See all ${STATUS_LABEL[s]} shipments as a list`}>
                     {STATUS_LABEL[s]} <span className="count">{list.length}</span>
@@ -230,7 +276,11 @@ export default function Board() {
                     aria-label={`Download ${STATUS_LABEL[s]} shipments as Excel`} title="Download as Excel">{downloading === s ? "…" : "⬇"}</button>
                 </div>
                 {list.map((j) => (
-                  <Link key={j.id} to={`/jobs/${j.id}`} className="jobcard">
+                  <Link key={j.id} to={`/jobs/${j.id}`} className={"jobcard" + (moving === j.id ? " moving" : "") + (drag?.id === j.id ? " dragging" : "")}
+                    draggable={targetsFor(j).length > 0}
+                    onDragStart={(e) => { e.dataTransfer.setData("text/plain", j.job_no); e.dataTransfer.effectAllowed = "move"; setDrag(j); setMenuFor(null); }}
+                    onDragEnd={() => { setDrag(null); setOver(null); }}
+                    title={targetsFor(j).length ? "Drag onto another step to move it, or open to see the shipment" : undefined}>
                     <strong>{j.job_no}{j.entry_color && <span className={"entry-color " + j.entry_color}>{pretty(j.entry_color)}</span>}</strong>
                     <span>{j.clients?.name}</span>
                     <span className="muted small">{pretty(j.service_type)}{j.bl_awb_no ? ` · ${j.bl_awb_no}` : ""}</span>
@@ -246,6 +296,19 @@ export default function Board() {
                     )}
                     {alertsFor(j).map((a) => <span key={a.kind} className={"alert-chip " + a.level}>{a.label}</span>)}
                     <CheckBadge scans={j.scan_results} />
+                    {targetsFor(j).length > 0 && (
+                      <span className="card-move" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                        <button type="button" className="link small" aria-expanded={menuFor === j.id} aria-label={`Move ${j.job_no} to another step`}
+                          onClick={() => setMenuFor(menuFor === j.id ? null : j.id)}>Move ▾</button>
+                        {menuFor === j.id && (
+                          <span className="move-menu" role="menu">
+                            {targetsFor(j).map((t) => (
+                              <button key={t} type="button" role="menuitem" onClick={() => moveTo(j, t)}>{STATUS_LABEL[t]}</button>
+                            ))}
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </Link>
                 ))}
               </section>

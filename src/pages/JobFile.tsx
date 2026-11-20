@@ -182,7 +182,8 @@ export default function JobFile() {
     if (!files?.length) return;
     run("upload", async () => {
       const { uploaded, problems } = await uploadDocs(job.id, Array.from(files), docType, profile!.id);
-      if (editable && uploaded > 0) {
+      // Also read again when the files were already here but never read (an earlier scan failed).
+      if (editable && (uploaded > 0 || docs.some((d) => !d.extracted))) {
         setBusy("scan");
         const err = await scanNow(false);
         if (err) problems.push(`Uploaded, but reading the documents failed: ${err}`);

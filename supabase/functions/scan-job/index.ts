@@ -12,7 +12,7 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import Anthropic from "npm:@anthropic-ai/sdk@1.6.0";
 import { crossCheck, type Issue } from "./crosscheck.ts";
-import { extractDocument, FAST_MODEL, MODEL, type ModelChoice } from "./extract.ts";
+import { BYTES_MAX, extractDocument, FAST_MODEL, MODEL, type ModelChoice } from "./extract.ts";
 import { consigneeOf, etaOf, jobPatch, PLACEHOLDER_CLIENT, primaryType, sameCompany, toDocInputs } from "./assemble.ts";
 import { spsChecks } from "./sps.ts";
 import { extraChecks } from "./extra.ts";
@@ -109,12 +109,20 @@ Deno.serve(async (req) => {
 
   const { data: allDocs, error: docsErr } = await admin
     .from("job_documents")
-    .select("id, doc_type, file_path, file_name, mime_type, extracted, extract_error")
+    .select("id, doc_type, file_path, file_name, mime_type, size_bytes, extracted, extract_error")
     .eq("job_id", job.id)
     .order("uploaded_at");
   if (docsErr) return json({ error: docsErr.message }, 500);
 
-  const docs = (allDocs ?? []).slice(0, MAX_DOCS);
+  // The same file uploaded twice (same name and size) is read once.
+  const seenFiles = new Set<string>();
+  const uniqueDocs = (allDocs ?? []).filter((d) => {
+    const key = `${d.file_name}|${d.size_bytes ?? ""}`;
+    if (seenFiles.has(key)) return false;
+    seenFiles.add(key);
+    return true;
+  });
+  const docs = uniqueDocs.slice(0, MAX_DOCS);
   const toExtract = docs.filter((d) => force || !d.extracted);
   const issues: Issue[] = [];
 
@@ -130,14 +138,23 @@ Deno.serve(async (req) => {
     const queue = [...toExtract];
     const worker = async () => {
       for (let d = queue.shift(); d; d = queue.shift()) {
-        const { data: blob, error: dlErr } = await admin.storage.from("job-docs").download(d.file_path);
+        // The AI service fetches each file itself through a private link that expires in 15 minutes;
+        // only small files are also downloaded here (for splitting, CSV text, or as a fallback).
+        const mime = d.mime_type || "application/pdf";
+        const size = Number(d.size_bytes ?? 0);
+        const { data: signed, error: urlErr } = await admin.storage.from("job-docs").createSignedUrl(d.file_path, 900);
+        let bytes: Uint8Array | undefined;
+        const isText = mime === "text/csv" || mime === "text/plain";
+        if (isText || !size || size <= BYTES_MAX || urlErr) {
+          const { data: blob } = await admin.storage.from("job-docs").download(d.file_path);
+          if (blob && (isText || blob.size <= BYTES_MAX)) bytes = new Uint8Array(await blob.arrayBuffer());
+        }
         let outcome;
-        if (dlErr || !blob) {
-          outcome = { ok: false as const, error: `Could not download file: ${dlErr?.message ?? "missing"}` };
+        if (!signed?.signedUrl && !bytes) {
+          outcome = { ok: false as const, error: `Could not open the file: ${urlErr?.message ?? "missing"}` };
         } else {
           outcome = await extractDocument(anthropic, {
-            bytes: new Uint8Array(await blob.arrayBuffer()),
-            mime: d.mime_type || blob.type || "application/pdf",
+            bytes, url: signed?.signedUrl, size: size || bytes?.length || 0, mime,
             name: d.file_name,
             declaredType: d.doc_type,
           }, settings);
@@ -177,11 +194,11 @@ Deno.serve(async (req) => {
       issues.push({ severity: "error", check: "extraction", message: `Could not read ${d.file_name}: ${d.extract_error}`, values: [] });
     }
   }
-  if ((allDocs ?? []).length > MAX_DOCS) {
+  if (uniqueDocs.length > MAX_DOCS) {
     issues.push({
       severity: "warning",
       check: "extraction",
-      message: `This shipment has ${(allDocs ?? []).length} files; only the first ${MAX_DOCS} are scanned.`,
+      message: `This shipment has ${uniqueDocs.length} files; only the first ${MAX_DOCS} are scanned.`,
       values: [],
     });
   }

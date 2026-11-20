@@ -1,6 +1,7 @@
 // Field extraction with the Claude API (structured outputs).
 import Anthropic from "npm:@anthropic-ai/sdk@1.6.0";
 import { PDFDocument } from "npm:pdf-lib@1.17.1";
+import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 import type { Extracted } from "./crosscheck.ts";
 
 /** The top model: re-reads hard scans and does the judgement checks. */
@@ -167,6 +168,8 @@ export type ExtractOutcome =
   | { ok: false; error: string };
 
 type FileSource =
+  | { type: "document"; source: { type: "url"; url: string } }
+  | { type: "image"; source: { type: "url"; url: string } }
   | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } }
   | { type: "image"; source: { type: "base64"; media_type: "image/png" | "image/jpeg"; data: string } }
   | { type: "document"; source: { type: "text"; media_type: "text/plain"; data: string } };
@@ -309,10 +312,21 @@ export function weakReading(parts: Extracted[]): boolean {
   });
 }
 
+/**
+ * A file to read. `url` is a short-lived private link the AI service fetches itself, so big scans
+ * cost the server no work. `bytes` is there only for small files (splitting, text, or a fallback
+ * when the link cannot be fetched).
+ */
+export type ReadFile = { bytes?: Uint8Array; url?: string; size: number; mime: string; name: string; declaredType: string };
+/** Bundled PDFs up to this size are split and read side by side; bigger ones are read in one pass. */
+export const SPLIT_MAX_BYTES = 3_000_000;
+/** Files up to this size are also downloaded, as a fallback if the link cannot be fetched. */
+export const BYTES_MAX = 6_000_000;
+
 /** Read a file with the low-cost model first, and with the top model when that reading is weak or fails. */
 export async function extractDocument(
   client: Anthropic,
-  file: { bytes: Uint8Array; mime: string; name: string; declaredType: string },
+  file: ReadFile,
   opts: ExtractOptions = { effort: "medium", fast: false },
 ): Promise<ExtractOutcome> {
   const choice = opts.models ?? "mixed";
@@ -325,30 +339,46 @@ export async function extractDocument(
   return first.ok ? first : second;
 }
 
+/** How the file is handed to the AI service: by link when there is one, else its contents. */
+export function sourceFor(file: ReadFile, byLink: boolean): FileSource | null {
+  const isPdf = file.mime === "application/pdf";
+  // Excel sheets arrive converted to CSV text by the app.
+  if (file.mime === "text/csv" || file.mime === "text/plain") {
+    return file.bytes ? { type: "document", source: { type: "text", media_type: "text/plain", data: new TextDecoder().decode(file.bytes) } } : null;
+  }
+  if (byLink && file.url) return isPdf ? { type: "document", source: { type: "url", url: file.url } } : { type: "image", source: { type: "url", url: file.url } };
+  if (!file.bytes) return null;
+  return isPdf ? pdfSource(file.bytes)
+    : { type: "image", source: { type: "base64", media_type: file.mime as "image/png" | "image/jpeg", data: toBase64(file.bytes) } };
+}
+
 async function extractWith(
   client: Anthropic,
-  file: { bytes: Uint8Array; mime: string; name: string; declaredType: string },
+  file: ReadFile,
   opts: ExtractOptions,
 ): Promise<ExtractOutcome> {
   const started = Date.now();
   const isPdf = file.mime === "application/pdf";
   try {
-    if (isPdf && opts.split) {
+    if (isPdf && opts.split && file.bytes && file.size <= SPLIT_MAX_BYTES) {
       // Any trouble splitting (an unusual PDF, an unclear page list, a failed slice) falls through to the one-pass read.
       const split = await readSplit(client, opts, file.bytes, file.name).catch(() => null);
       if (split) return { ok: true, ...split, ms: Date.now() - started };
     }
-    // Excel sheets arrive converted to CSV text by the app.
-    const isText = file.mime === "text/csv" || file.mime === "text/plain";
-    const source: FileSource = isPdf ? pdfSource(file.bytes)
-      : isText ? { type: "document", source: { type: "text", media_type: "text/plain", data: new TextDecoder().decode(file.bytes) } }
-      : { type: "image", source: { type: "base64", media_type: file.mime as "image/png" | "image/jpeg", data: toBase64(file.bytes) } };
-    const whole = await readWhole(
-      client, opts, source,
-      `File name: ${file.name}\n${
-        file.declaredType === "other" ? "" : `The uploader filed this as: ${file.declaredType}\n`
-      }Extract the fields of every document in this file.`,
-    );
+    const text = `File name: ${file.name}\n${
+      file.declaredType === "other" ? "" : `The uploader filed this as: ${file.declaredType}\n`
+    }Extract the fields of every document in this file.`;
+    const source = sourceFor(file, true);
+    if (!source) return { ok: false, error: "The file could not be opened on the server." };
+    let whole;
+    try {
+      whole = await readWhole(client, opts, source, text);
+    } catch (err) {
+      // The AI service could not fetch the private link: send the contents instead, if we have them.
+      const fallback = source.source.type === "url" && err instanceof Anthropic.BadRequestError ? sourceFor(file, false) : null;
+      if (!fallback) throw err;
+      whole = await readWhole(client, opts, fallback, text);
+    }
     if (whole.parts.length === 0) return { ok: false, error: "No document could be read from this file." };
     return { ok: true, parts: whole.parts, model: whole.model, usage: whole.usage, speed: whole.speed, segments: 1, ms: Date.now() - started };
   } catch (err) {
@@ -410,11 +440,7 @@ export function blankToNull(v: unknown): unknown {
   return v;
 }
 
+/** Fast conversion of file contents for sending (the old letter-by-letter way used up the server's time on big scans). */
 function toBase64(bytes: Uint8Array): string {
-  let bin = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(bin);
+  return encodeBase64(bytes);
 }

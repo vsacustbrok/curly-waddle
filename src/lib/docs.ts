@@ -66,10 +66,17 @@ export async function uploadDocs(jobId: string, originals: File[], docType: stri
   const problems: string[] = [];
   let uploaded = 0;
   const files = await Promise.all(originals.map(toUploadable));
+  // The same file (same name and size) already on this shipment is not uploaded again.
+  const { data: existing } = await supabase.from("job_documents").select("file_name, size_bytes").eq("job_id", jobId);
+  const seen = new Set((existing ?? []).map((d) => `${d.file_name}|${d.size_bytes}`));
+  let skipped = 0;
   // Files go up side by side: the wait is for the slowest file, not the sum of them.
   await Promise.all(files.map(async (file) => {
     const problem = fileProblem(file);
     if (problem) { problems.push(problem); return; }
+    const key = `${file.name}|${file.size}`;
+    if (seen.has(key)) { skipped++; return; }
+    seen.add(key);
     const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase().replace(/[^a-z0-9]/g, "") : "bin";
     const path = `${jobId}/${crypto.randomUUID()}.${ext}`;
     const up = await supabase.storage.from("job-docs").upload(path, file, { contentType: file.type });
@@ -83,6 +90,7 @@ export async function uploadDocs(jobId: string, originals: File[], docType: stri
       problems.push(`${file.name}: ${ins.error.message}`);
     } else uploaded++;
   }));
+  if (skipped) problems.push(`${skipped} file(s) were already on this shipment and were not uploaded again.`);
   return { uploaded, problems };
 }
 
@@ -99,6 +107,9 @@ export async function runScan(jobId: string, force: boolean): Promise<ScanOutcom
   if (error) {
     // Non-2xx: the function's own message is in the response body.
     const ctx = (error as { context?: Response }).context;
+    if (ctx?.status === 546 || ctx?.status === 504) {
+      return { error: "The reader ran out of time on the server. The files are saved: press Scan again. If it keeps happening, scan the biggest file on its own.", filled: [] };
+    }
     const body = ctx && typeof ctx.json === "function" ? await ctx.json().catch(() => null) : null;
     return { error: body?.error ?? error.message, filled: [] };
   }

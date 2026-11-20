@@ -25,3 +25,12 @@ Deno.test("a reading's number fields are converted, text fields kept", () => {
 Deno.test("the field list has no 'number or null' fields (the API refuses those as too large)", () => {
   assertEquals(JSON.stringify(EXTRACTION_SCHEMA).includes('"null"'), false);
 });
+
+Deno.test("a seal printed after the container is not counted as a second container", () => {
+  const p = numbersOf({ container_numbers: ["EMCU5497406", "EMCUQM4413"], seal_numbers: [] });
+  assertEquals(p.container_numbers, ["EMCU5497406"]);
+  assertEquals(p.seal_numbers, ["EMCUQM4413"]);
+  const q = numbersOf({ container_numbers: ["MSCU 123456-5", "MSCU7654321"], seal_numbers: ["998877"] });
+  assertEquals(q.container_numbers, ["MSCU 123456-5", "MSCU7654321"]);
+  assertEquals(q.seal_numbers, ["998877"]);
+});

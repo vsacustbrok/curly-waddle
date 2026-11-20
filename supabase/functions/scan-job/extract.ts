@@ -114,11 +114,13 @@ const SYSTEM = `You read import shipping documents for a Philippine customs brok
 
 A file may hold one document or several bound together (for example a bill of lading, a commercial invoice, a packing list and certificates in one scan). Return one entry in "documents" for each distinct document, in the order they appear, and set doc_type_detected from what the document itself is, whatever the file is named. Fill each entry only from that document's own pages: never carry a value from the bill of lading into the invoice entry or the other way round. Use "other" for anything that is not on the list below, such as loading records or weighbridge tickets.
 
+Documents may be in any language (Spanish, Chinese, Portuguese, Vietnamese, Thai...). Read them all; never skip or refuse one because of its language. Write goods_description, line item descriptions, package_type and notes in English, translating where needed, and add the original wording in brackets when it helps, e.g. "Frozen pork ears (Orejas de cerdo congeladas)". Keep names, addresses, numbers and codes as printed, in Latin letters (transliterate other scripts). Classify the document by what it is, whatever its language: a "Certificado de Origen" is a certificate_of_origin, a "Certificado Sanitario" or "Certificat sanitaire" a health_certificate.
+
 Transcribe exactly what the document shows. Do not infer, normalise or correct values, and do not copy a value from one field into another. When a field is not on the document, return an empty string; for a missing list return an empty array. Write numbers as plain digits with a decimal point and no thousands separators, currency or units, e.g. 24500.00. The brokerage cross-checks these values between documents, so a guessed value is worse than a null.
 
 Document types: set doc_type_detected to exactly one of these names: bill_of_lading, seaway_bill, telex_release, airway_bill, commercial_invoice, sales_contract, purchase_order, packing_list, container_list, payment_proof, bank_document, insurance_certificate, sps_import_clearance, mav_certificate, fda_permit, peza_permit, agency_permit, health_certificate, phytosanitary_certificate, halal_certificate, fumigation_certificate, certificate_of_origin, importer_accreditation, arrival_notice, permit, entry, assessment, release, delivery_receipt, other.
 - bill_of_lading: an original or copy bill of lading (B/L, "Bill of Lading", negotiable).
-- seaway_bill: a Sea Waybill or Express Bill of Lading ("Sea Waybill", "Seaway Bill", "Non-negotiable", "Express B/L"), which needs no original for release.
+- seaway_bill: a document titled Sea Waybill, Seaway Bill or Express Bill of Lading, which needs no original for release. A bill of lading stamped "Non-negotiable copy", "Copy" or "Draft" is still a bill_of_lading.
 - telex_release: a bill of lading marked "TELEX RELEASE(D)", "SURRENDERED" or "ORIGINAL BL SURRENDERED", or a carrier's telex release message for a bill of lading. Fill its bill of lading fields the same way.
 - airway_bill: a master or house Air Waybill (AWB / HAWB).
 - commercial_invoice: an invoice for the goods (commercial, proforma or final invoice).
@@ -140,12 +142,12 @@ For contracts and purchase orders, document_number is the contract or PO number,
 
 Field guidance:
 - bl_awb_number: the master or house Bill of Lading number, or the Air Waybill number. On an invoice or packing list, fill it only if a BL/AWB reference is printed.
-- container_numbers: every container number, as printed (4 letters + 7 digits).
+- container_numbers: every container number: exactly 4 letters followed by 7 digits (e.g. EMCU5497406). Container lines are often printed as "container / seal / packages", e.g. "EMCU5497406/EMCUQM4413/2460 PLTS": there the second value is the seal, not another container. Anything that is not 4 letters + 7 digits belongs in seal_numbers, not here. Count containers by the "1 X 40RH" style summary when one is printed.
 - gross_weight / net_weight: the shipment totals, as numbers without thousands separators; weight_unit is the unit printed (KG, LBS, MT).
 - package_count: the total number of outer packages (cartons, pallets, crates), not the quantity of goods.
 - invoice_total: the final total the invoice states is payable for the goods. line_items: each goods line with its quantity, unit price and line amount.
 - goods_description: the description of goods as printed (for a BL, the "description of packages and goods" box).
-- issue_date, shipped_on_board_date, sps_must_ship_out_date, sps_valid_until, eta_date: write these five as YYYY-MM-DD. Use them only for a full date printed on the document; if a date is masked, partly illegible, or its day and month could be read either way, return an empty string and say so in notes.
+- issue_date, shipped_on_board_date, sps_must_ship_out_date, sps_valid_until, eta_date: write these five as YYYY-MM-DD. Use them only for a full date printed on the document. Work out whether a date like 12/08/2026 is day-first or month-first from the document itself: other dates on it with a day above 12, its language, or the issuing country's custom (Europe, Latin America, Asia and the Philippines write the day first; the USA writes the month first). If a date is masked, partly illegible, or still could be read either way, return an empty string and say so in notes.
 - shipped_on_board_date: the "shipped on board" / "laden on board" date of a bill of lading, or the flight date of an air waybill. It is not the date of issue unless the document says the goods were shipped on that date.
 - Permits, certificates and accreditations of any kind (SPS, MAV, FDA, PEZA, agency permits, health and other certificates, importer accreditation): document_number is the permit or certificate number, issue_date the date issued, sps_valid_until the expiry or validity date, and sps_permitted_weight with sps_permitted_weight_unit the quantity allowed when stated as a weight (for MAV, the volume allocated). sps_must_ship_out_date is only for an SPS import clearance.
 - sps_import_clearance is a Philippine Sanitary and Phytosanitary Import Clearance (SPSIC) from the Bureau of Animal Industry, Bureau of Plant Industry or BFAR. For it: document_number is the clearance number, consignee is the importer, shipper is the exporter or supplier, goods_description is the commodity, issue_date is the date issued, sps_must_ship_out_date is the "must ship out" date (the last day the goods may leave the origin), sps_valid_until is the validity or expiry date if printed separately, and sps_permitted_weight with sps_permitted_weight_unit is the quantity or volume allowed, when stated as a weight. Leave the sps_ fields empty on bills of lading, invoices, packing lists and other commercial papers.
@@ -449,14 +451,30 @@ export function toNumber(v: unknown): number | null {
   return Number.isFinite(x) ? x : null;
 }
 
-/** Turns the number fields the model wrote as text back into numbers. */
+const CONTAINER_RE = /^[A-Z]{4}\d{7}$/;
+/**
+ * A container number is 4 letters + 7 digits. Anything else the reader listed as a container (a seal
+ * printed right after the container, e.g. "EMCU5497406/EMCUQM4413") is moved to the seal numbers.
+ */
+export function splitSeals(p: Extracted): Extracted {
+  const listed = p.container_numbers ?? [];
+  if (!listed.length) return p;
+  const clean = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const containers = listed.filter((c) => CONTAINER_RE.test(clean(c)));
+  const seals = listed.filter((c) => !CONTAINER_RE.test(clean(c)) && clean(c));
+  if (!seals.length) return p;
+  const known = new Set((p.seal_numbers ?? []).map(clean));
+  return { ...p, container_numbers: containers, seal_numbers: [...(p.seal_numbers ?? []), ...seals.filter((v) => !known.has(clean(v)))] };
+}
+
+/** Turns the number fields the model wrote as text back into numbers, and keeps seals out of the containers. */
 export function numbersOf(p: Extracted): Extracted {
-  const out: Record<string, unknown> = { ...p };
+  const out: Record<string, unknown> = { ...splitSeals(p) };
   for (const k of NUMBER_FIELDS) out[k] = toNumber(out[k]);
   const pc = toNumber(out.package_count);
   out.package_count = pc == null ? null : Math.round(pc);
-  if (Array.isArray(p.line_items)) {
-    out.line_items = p.line_items.map((l) => {
+  if (Array.isArray(out.line_items)) {
+    out.line_items = (out.line_items as NonNullable<Extracted["line_items"]>).map((l) => {
       const o: Record<string, unknown> = { ...l };
       for (const k of LINE_NUMBER_FIELDS) o[k] = toNumber(o[k]);
       return o;

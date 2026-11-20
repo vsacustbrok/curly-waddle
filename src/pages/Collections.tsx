@@ -20,7 +20,7 @@ export default function Collections() {
     (async () => {
       const [charges, payments] = await Promise.all([
         fetchAll<Charge>((a, b) => supabase.from("charges").select("job_id, amount, vatable, advance").order("id").range(a, b) as never),
-        fetchAll<Payment>((a, b) => supabase.from("payments").select("job_id, amount").order("id").range(a, b) as never),
+        fetchAll<Payment>((a, b) => supabase.from("payments").select("job_id, amount, ewt_amount").order("id").range(a, b) as never),
       ]);
       const ids = [...new Set(charges.map((c) => c.job_id))];
       const jobs: Job[] = [];

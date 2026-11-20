@@ -9,9 +9,10 @@ import {
   type Charge, type ChargeKind, type Payment, type PaymentMethod,
 } from "../lib/billing";
 import { today } from "./JobFields";
+import { DOC_TITLE, amount, missingSetup, type BirDoc, type BirSettings } from "../lib/bir";
 
 const blankCharge = { kind: "brokerage_fee" as ChargeKind, description: "", amount: "", vatable: true, advance: false };
-const blankPayment = { amount: "", paid_on: "", method: "bank_transfer" as PaymentMethod, reference: "" };
+const blankPayment = { amount: "", paid_on: "", method: "bank_transfer" as PaymentMethod, reference: "", ewt: "" };
 
 export default function BillingSection({ job, role, termsDays, onJobSaved }: {
   job: Job; role: Role; termsDays: number; onJobSaved: () => void;
@@ -24,15 +25,22 @@ export default function BillingSection({ job, role, termsDays, onJobSaved }: {
   const [soa, setSoa] = useState({ soa_no: job.soa_no ?? "", billed_on: job.billed_on ?? "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [docs, setDocs] = useState<BirDoc[]>([]);
+  const [bir, setBir] = useState<BirSettings | null>(null);
+  const [notice, setNotice] = useState("");
 
   const load = useCallback(async () => {
-    const [c, p] = await Promise.all([
+    const [c, p, d, b] = await Promise.all([
       supabase.from("charges").select("*").eq("job_id", job.id).order("id"),
       supabase.from("payments").select("*").eq("job_id", job.id).order("paid_on"),
+      supabase.from("bir_documents").select("*").eq("job_id", job.id).order("issued_at"),
+      supabase.from("bir_settings").select("*").maybeSingle(),
     ]);
     setError(c.error?.message ?? p.error?.message ?? "");
     setCharges((c.data as Charge[]) ?? []);
     setPayments((p.data as Payment[]) ?? []);
+    setDocs((d.data as BirDoc[]) ?? []);
+    setBir((b.data as BirSettings | null) ?? null);
   }, [job.id]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setSoa({ soa_no: job.soa_no ?? "", billed_on: job.billed_on ?? "" }); }, [job.soa_no, job.billed_on]);
@@ -60,8 +68,10 @@ export default function BillingSection({ job, role, termsDays, onJobSaved }: {
   async function addPayment(e: FormEvent) {
     e.preventDefault();
     const amount = Number(payment.amount.replace(/,/g, ""));
+    const ewt = payment.ewt.trim() ? Number(payment.ewt.replace(/,/g, "")) : 0;
     if (!(amount > 0)) { setError("Enter the amount received as a number above zero."); return; }
-    if (await run(() => supabase.from("payments").insert({ job_id: job.id, amount, paid_on: payment.paid_on || today(), method: payment.method, reference: payment.reference.trim() || null }))) {
+    if (!(ewt >= 0)) { setError("Enter the tax withheld as a number, or leave it blank."); return; }
+    if (await run(() => supabase.from("payments").insert({ job_id: job.id, amount, ewt_amount: ewt, paid_on: payment.paid_on || today(), method: payment.method, reference: payment.reference.trim() || null }))) {
       setPayment({ ...blankPayment, paid_on: today() }); load();
     }
   }
@@ -69,6 +79,44 @@ export default function BillingSection({ job, role, termsDays, onJobSaved }: {
     if (!confirm(`Remove the payment of ${peso(Number(p.amount))} on ${dayLabel(p.paid_on)}?`)) return;
     if (await run(() => supabase.from("payments").delete().eq("id", p.id))) load();
   }
+  // BIR documents: the database gives the number, checks the BIR details and locks what is covered.
+  const docNo = (id: number | null | undefined) => docs.find((d) => d.id === id)?.doc_no;
+  const uninvoiced = charges.filter((c) => !c.advance && !c.invoice_id);
+  async function issueInvoice() {
+    const missing = missingSetup(bir, "invoice");
+    if (missing.length) { setError(`Fill in the BIR details first (BIR books → BIR details): ${missing.join(", ")}.`); return; }
+    if (!confirm(`Issue a Sales Invoice for ${uninvoiced.length} service charge(s)? It gets the next number and cannot be edited afterwards, only voided.`)) return;
+    setBusy(true); setError(""); setNotice("");
+    const { data, error } = await supabase.rpc("issue_sales_invoice", { p_job: job.id });
+    setBusy(false);
+    if (error) { setError(error.message); return; }
+    await load();
+    setNotice("Sales Invoice issued.");
+    window.open(`/bir/${data}`, "_blank", "noopener");
+  }
+  async function issueReceipt(p: Payment) {
+    const missing = missingSetup(bir, "receipt");
+    if (missing.length) { setError(`Fill in the BIR details first (BIR books → BIR details): ${missing.join(", ")}.`); return; }
+    if (!confirm(`Issue a Collection Receipt for ${peso(Number(p.amount) + Number(p.ewt_amount ?? 0))} received ${dayLabel(p.paid_on)}?`)) return;
+    setBusy(true); setError(""); setNotice("");
+    const { data, error } = await supabase.rpc("issue_collection_receipt", { p_payment: p.id });
+    setBusy(false);
+    if (error) { setError(error.message); return; }
+    await load();
+    setNotice("Collection Receipt issued.");
+    window.open(`/bir/${data}`, "_blank", "noopener");
+  }
+  async function voidDoc(d: BirDoc) {
+    const reason = prompt(`Void ${DOC_TITLE[d.doc_type]} ${d.doc_no}? It keeps its number and shows as VOID in the books.\n\nReason:`);
+    if (reason == null) return;
+    setBusy(true); setError(""); setNotice("");
+    const { error } = await supabase.rpc("void_bir_document", { p_doc: d.id, p_reason: reason });
+    setBusy(false);
+    if (error) { setError(error.message); return; }
+    setNotice(`${d.doc_no} is now void. The charges or payment it covered can be corrected and issued again.`);
+    load();
+  }
+
   async function saveSoa(e: FormEvent) {
     e.preventDefault();
     if (await run(() => supabase.from("jobs").update({ soa_no: soa.soa_no.trim() || null, billed_on: soa.billed_on || null }).eq("id", job.id))) onJobSaved();
@@ -92,6 +140,7 @@ export default function BillingSection({ job, role, termsDays, onJobSaved }: {
         )}
       </div>
       {error && <p className="error">{error}</p>}
+      {notice && <p className="ok" role="status">{notice}</p>}
 
       <div className="row stat-row">
         <span className="stat">Billed <strong>{peso(t.total)}</strong></span>
@@ -111,8 +160,8 @@ export default function BillingSection({ job, role, termsDays, onJobSaved }: {
               <tr key={c.id}>
                 <td>{CHARGE_LABEL[c.kind]}</td><td>{c.description}</td>
                 <td className="num">{money(Number(c.amount))}</td><td className="num">{c.vatable ? money(vatOf(c)) : ""}</td>
-                <td className="muted">{c.advance ? "Advance for client" : ""}</td>
-                <td>{canBill && <button type="button" className="link danger-text" onClick={() => removeCharge(c)}>Remove</button>}</td>
+                <td className="muted">{c.advance ? "Advance for client" : c.invoice_id ? <span className="badge">Invoice {docNo(c.invoice_id)}</span> : ""}</td>
+                <td>{canBill && !c.invoice_id && <button type="button" className="link danger-text" onClick={() => removeCharge(c)}>Remove</button>}</td>
               </tr>
             ))}
             <tr className="total"><td colSpan={2}>Services {peso(t.services)} · Advances {peso(t.advances)}</td><td className="num" colSpan={2}>Total {peso(t.total)}</td><td colSpan={2}></td></tr>
@@ -139,13 +188,16 @@ export default function BillingSection({ job, role, termsDays, onJobSaved }: {
       <h3>Payments received</h3>
       {payments.length === 0 ? <p className="muted small">No payments yet.</p> : (
         <table className="small">
-          <thead><tr><th>Date</th><th className="num">Amount</th><th>How</th><th>Reference</th><th></th></tr></thead>
+          <thead><tr><th>Date</th><th className="num">Amount</th><th className="num">Tax withheld</th><th>How</th><th>Reference</th><th>Receipt</th><th></th></tr></thead>
           <tbody>
             {payments.map((p) => (
               <tr key={p.id}>
                 <td className="nowrap">{dayLabel(p.paid_on)}</td><td className="num">{money(Number(p.amount))}</td>
+                <td className="num">{Number(p.ewt_amount ?? 0) ? money(Number(p.ewt_amount)) : ""}</td>
                 <td>{p.method ? METHOD_LABEL[p.method] : ""}</td><td>{p.reference}</td>
-                <td>{canBill && <button type="button" className="link danger-text" onClick={() => removePayment(p)}>Remove</button>}</td>
+                <td>{p.receipt_id ? <span className="badge">{docNo(p.receipt_id)}</span>
+                  : canBill && <button type="button" className="link" disabled={busy} onClick={() => issueReceipt(p)}>Issue receipt</button>}</td>
+                <td>{canBill && !p.receipt_id && <button type="button" className="link danger-text" onClick={() => removePayment(p)}>Remove</button>}</td>
               </tr>
             ))}
           </tbody>
@@ -158,9 +210,38 @@ export default function BillingSection({ job, role, termsDays, onJobSaved }: {
           <select value={payment.method} onChange={(e) => setPayment({ ...payment, method: e.target.value as PaymentMethod })} aria-label="Payment method">
             {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{METHOD_LABEL[m]}</option>)}
           </select>
-          <input placeholder="OR / check / bank ref. no." value={payment.reference} onChange={(e) => setPayment({ ...payment, reference: e.target.value })} aria-label="Payment reference" />
+          <input placeholder="Withheld ₱ (2307)" inputMode="decimal" value={payment.ewt} onChange={(e) => setPayment({ ...payment, ewt: e.target.value })} aria-label="Tax withheld by the client (BIR Form 2307)" style={{ width: "11em" }} />
+          <input placeholder="Check / bank ref. no." value={payment.reference} onChange={(e) => setPayment({ ...payment, reference: e.target.value })} aria-label="Payment reference" />
           <button disabled={busy}>Record payment</button>
         </form>
+      )}
+
+      <h3>BIR documents</h3>
+      {canBill && (
+        <div className="row wrap">
+          <button type="button" disabled={busy || uninvoiced.length === 0} onClick={issueInvoice}
+            title={uninvoiced.length ? "" : "Every service charge is already on an invoice (advances are not sales and stay off it)."}>
+            Issue sales invoice{uninvoiced.length ? ` (${uninvoiced.length} charge${uninvoiced.length === 1 ? "" : "s"})` : ""}
+          </button>
+          {uninvoiced.length > 0 && <Link className="ghost-link" to={`/jobs/${job.id}/invoice-preview`} target="_blank">Preview (specimen)</Link>}
+          {missingSetup(bir, "invoice").length > 0 && <span className="muted small">Before issuing: complete the <Link to="/bir-books">BIR details</Link>.</span>}
+        </div>
+      )}
+      {docs.length === 0 ? <p className="muted small">No sales invoice or collection receipt issued yet.</p> : (
+        <table className="small">
+          <thead><tr><th>Document</th><th>No.</th><th>Date</th><th className="num">Amount</th><th></th><th></th></tr></thead>
+          <tbody>
+            {docs.map((d) => (
+              <tr key={d.id} className={d.voided ? "voided" : ""}>
+                <td>{DOC_TITLE[d.doc_type]}</td><td className="nowrap"><strong>{d.doc_no}</strong>{d.voided && <span className="badge void">VOID</span>}</td>
+                <td className="nowrap">{dayLabel(d.issued_on)}</td><td className="num">{amount(d.total)}</td>
+                <td><Link to={`/bir/${d.id}`} target="_blank">Print</Link></td>
+                <td>{canBill && !d.voided && <button type="button" className="link danger-text" disabled={busy} onClick={() => voidDoc(d)}>Void</button>}
+                  {d.voided && <span className="muted small" title={d.void_reason ?? ""}>{d.void_reason}</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
 
       {canBill && (

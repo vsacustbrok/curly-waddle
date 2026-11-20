@@ -11,20 +11,21 @@ export const PAYMENT_METHODS = ["cash", "check", "bank_transfer", "online", "oth
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export const METHOD_LABEL: Record<PaymentMethod, string> = { cash: "Cash", check: "Check", bank_transfer: "Bank transfer", online: "Online", other: "Other" };
 
-export type Charge = { id: number; job_id: string; kind: ChargeKind; description: string | null; amount: number; vatable: boolean; advance: boolean; created_at: string };
-export type Payment = { id: number; job_id: string; amount: number; paid_on: string; method: PaymentMethod | null; reference: string | null; created_at: string };
+export type Charge = { id: number; job_id: string; kind: ChargeKind; description: string | null; amount: number; vatable: boolean; advance: boolean; created_at: string; invoice_id?: number | null };
+/** ewt_amount: tax the client withheld (BIR Form 2307); it counts toward what they paid. */
+export type Payment = { id: number; job_id: string; amount: number; paid_on: string; method: PaymentMethod | null; reference: string | null; created_at: string; ewt_amount?: number | null; receipt_id?: number | null };
 
 const round = (n: number) => Math.round(n * 100) / 100;
 export const vatOf = (c: Pick<Charge, "amount" | "vatable">) => (c.vatable ? round(Number(c.amount) * VAT_RATE) : 0);
 
 export type Totals = { services: number; advances: number; vat: number; total: number; paid: number; balance: number };
 /** Services (VSA's own fees), advances (paid for the client), VAT, total billed, paid and balance due. */
-export function totals(charges: Pick<Charge, "amount" | "vatable" | "advance">[], payments: Pick<Payment, "amount">[]): Totals {
+export function totals(charges: Pick<Charge, "amount" | "vatable" | "advance">[], payments: (Pick<Payment, "amount"> & { ewt_amount?: number | null })[]): Totals {
   const services = round(charges.filter((c) => !c.advance).reduce((s, c) => s + Number(c.amount), 0));
   const advances = round(charges.filter((c) => c.advance).reduce((s, c) => s + Number(c.amount), 0));
   const vat = round(charges.reduce((s, c) => s + vatOf(c), 0));
   const total = round(services + advances + vat);
-  const paid = round(payments.reduce((s, p) => s + Number(p.amount), 0));
+  const paid = round(payments.reduce((s, p) => s + Number(p.amount) + Number(p.ewt_amount ?? 0), 0));
   return { services, advances, vat, total, paid, balance: round(total - paid) };
 }
 

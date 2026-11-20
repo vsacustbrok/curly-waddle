@@ -28,6 +28,8 @@ const Duties = lazy(() => import("./pages/Duties"));
 const DutyRates = lazy(() => import("./pages/DutyRates"));
 const PreSad = lazy(() => import("./pages/PreSad"));
 const Track = lazy(() => import("./pages/Track"));
+const BirPrint = lazy(() => import("./pages/BirPrint"));
+const BirBooks = lazy(() => import("./pages/BirBooks"));
 
 /** Lets each person choose the menu across the top (horizontal) or down the side (vertical). */
 function LayoutToggle() {
@@ -127,6 +129,7 @@ export default function App() {
           <NavLink to="/reports">Reports</NavLink>
           {canEditJobs(role) && <NavLink to="/jobs/new">New shipment</NavLink>}
           {(role === "owner" || role === "billing") && <NavLink to="/collections">Collections</NavLink>}
+          {(role === "owner" || role === "billing") && <NavLink to="/bir-books">BIR books</NavLink>}
           <NavLink to="/pre-lodgment-audit">Pre-Lodgment Audit</NavLink>
           <NavLink to="/duties">Duties & Taxes</NavLink>
           <NavLink to="/riders">Riders</NavLink>
@@ -155,6 +158,9 @@ export default function App() {
           <Route path="/jobs/:id/print/:form" element={<FormPrint />} />
           <Route path="/collections" element={role === "owner" || role === "billing" ? <Collections /> : <Navigate to="/" />} />
           <Route path="/riders" element={<Riders />} />
+          <Route path="/bir-books" element={role === "owner" || role === "billing" ? <BirBooks /> : <Navigate to="/" />} />
+          <Route path="/bir/:id" element={<BirPrint />} />
+          <Route path="/jobs/:jobId/invoice-preview" element={<BirPrint />} />
           <Route path="/pre-lodgment-audit" element={<PreLodgmentAudit />} />
           <Route path="/pre-lodgment-audit/:id" element={<PreLodgmentAudit />} />
           <Route path="/duties" element={<Duties />} />

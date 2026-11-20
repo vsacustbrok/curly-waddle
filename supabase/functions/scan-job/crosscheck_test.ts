@@ -1,5 +1,5 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { crossCheck, isValidContainer, nameSimilarity, sameRef, toKg, type DocInput, type JobInput } from "./crosscheck.ts";
+import { crossCheck, isValidContainer, nameSimilarity, nameTokens, sameRef, toKg, type DocInput, type JobInput } from "./crosscheck.ts";
 
 const job: JobInput = {
   bl_awb_no: "MAEU123456789",
@@ -100,4 +100,9 @@ Deno.test("warnings: description, check digit, missing docs, line math", () => {
   assertEquals(r.issues.filter((i) => i.check === "documents_present").length, 2);
   r = crossCheck(job, docs({ inv: { line_items: [{ description: "x", quantity: 2, unit_price: 5, amount: 11 }], invoice_total: 11 } }));
   assert(r.issues.some((i) => i.check === "invoice_line_math"));
+});
+
+Deno.test("company names keep their letters; accents are ignored", () => {
+  assertEquals([...nameTokens("Café Société Holdings Inc")].sort(), ["CAFE", "SOCIETE"]);
+  assertEquals(nameSimilarity("ACME FOODS PTY LTD", "Acme Foods Pty. Ltd."), 1);
 });

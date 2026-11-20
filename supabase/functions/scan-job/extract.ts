@@ -9,8 +9,10 @@ export const MODEL = "claude-opus-5-5";
 /** The low-cost model that reads documents first. */
 export const FAST_MODEL = "claude-haiku-5-5";
 
-const nullable = (t: string) => ({ type: [t, "null"] });
 const str = { type: "string" };
+// Numbers are asked for as text and turned into numbers in code (numbersOf below): a schema with
+// many "number or null" fields compiles too large for the API ("compiled grammar is too large").
+const num = str;
 const party = {
   type: "object",
   properties: { name: str, address: str, contact: str, tin: str },
@@ -19,8 +21,7 @@ const party = {
 };
 
 // Every field is required so the model must state "not present" explicitly
-// rather than silently dropping a key. Absent text is an empty string and only
-// numbers are nullable: the API caps a schema at 16 union-typed parameters.
+// rather than silently dropping a key. Absent values are an empty string.
 // blankToNull() turns the empty strings back into nulls after parsing.
 // The API also caps the size of the compiled schema, and this one is close to
 // that cap: adding a field usually means removing another. Prefer plain strings
@@ -44,24 +45,24 @@ const DOC_SCHEMA = {
     port_of_discharge: str,
     container_numbers: { type: "array", items: { type: "string" } },
     seal_numbers: { type: "array", items: { type: "string" } },
-    gross_weight: nullable("number"),
-    net_weight: nullable("number"),
+    gross_weight: num,
+    net_weight: num,
     weight_unit: str,
-    package_count: nullable("integer"),
+    package_count: num,
     package_type: str,
-    volume_cbm: nullable("number"),
+    volume_cbm: num,
     goods_description: str,
     hs_codes: { type: "array", items: { type: "string" } },
     currency: str,
     incoterm: str,
-    invoice_total: nullable("number"),
-    freight_amount: nullable("number"),
-    insurance_amount: nullable("number"),
+    invoice_total: num,
+    freight_amount: num,
+    insurance_amount: num,
     issue_date: str,
     shipped_on_board_date: str,
     sps_must_ship_out_date: str,
     sps_valid_until: str,
-    sps_permitted_weight: nullable("number"),
+    sps_permitted_weight: num,
     sps_permitted_weight_unit: str,
     country_of_origin: str,
     eta_date: str,
@@ -77,9 +78,9 @@ const DOC_SCHEMA = {
         properties: {
           description: str,
           hs_code: str,
-          quantity: nullable("number"),
-          unit_price: nullable("number"),
-          amount: nullable("number"),
+          quantity: num,
+          unit_price: num,
+          amount: num,
         },
         required: ["description", "hs_code", "quantity", "unit_price", "amount"],
         additionalProperties: false,
@@ -113,7 +114,7 @@ const SYSTEM = `You read import shipping documents for a Philippine customs brok
 
 A file may hold one document or several bound together (for example a bill of lading, a commercial invoice, a packing list and certificates in one scan). Return one entry in "documents" for each distinct document, in the order they appear, and set doc_type_detected from what the document itself is, whatever the file is named. Fill each entry only from that document's own pages: never carry a value from the bill of lading into the invoice entry or the other way round. Use "other" for anything that is not on the list below, such as loading records or weighbridge tickets.
 
-Transcribe exactly what the document shows. Do not infer, normalise or correct values, and do not copy a value from one field into another. When a text field is not on the document, return an empty string; for a missing number return null; for a missing list return an empty array. The brokerage cross-checks these values between documents, so a guessed value is worse than a null.
+Transcribe exactly what the document shows. Do not infer, normalise or correct values, and do not copy a value from one field into another. When a field is not on the document, return an empty string; for a missing list return an empty array. Write numbers as plain digits with a decimal point and no thousands separators, currency or units, e.g. 24500.00. The brokerage cross-checks these values between documents, so a guessed value is worse than a null.
 
 Document types: set doc_type_detected to exactly one of these names: bill_of_lading, seaway_bill, telex_release, airway_bill, commercial_invoice, sales_contract, purchase_order, packing_list, container_list, payment_proof, bank_document, insurance_certificate, sps_import_clearance, mav_certificate, fda_permit, peza_permit, agency_permit, health_certificate, phytosanitary_certificate, halal_certificate, fumigation_certificate, certificate_of_origin, importer_accreditation, arrival_notice, permit, entry, assessment, release, delivery_receipt, other.
 - bill_of_lading: an original or copy bill of lading (B/L, "Bill of Lading", negotiable).
@@ -224,7 +225,7 @@ const pdfSource = (bytes: Uint8Array): FileSource => ({
 async function readWhole(client: Anthropic, opts: ExtractOptions, source: FileSource, text: string) {
   const r = await ask(client, opts, { system: SYSTEM, schema: EXTRACTION_SCHEMA, source, text, maxTokens: 16000 });
   const parts = ((blankToNull(r.json) as { documents?: Extracted[] }).documents ?? [])
-    .map((p) => ({ ...p, doc_type_detected: documentType(p.doc_type_detected) }));
+    .map((p) => numbersOf({ ...p, doc_type_detected: documentType(p.doc_type_detected) }));
   return { ...r, parts };
 }
 
@@ -428,6 +429,40 @@ export function documentType(v: unknown): string {
   if (/^sps|sanitary/.test(t)) return "sps_import_clearance";
   if (/icc|ntc|denr|pdea|fpa|sra|bai|bpi|clearance/.test(t)) return "agency_permit";
   return "other";
+}
+
+const NUMBER_FIELDS = ["gross_weight", "net_weight", "volume_cbm", "invoice_total", "freight_amount", "insurance_amount", "sps_permitted_weight"] as const;
+const LINE_NUMBER_FIELDS = ["quantity", "unit_price", "amount"] as const;
+
+/** "24,500.00 KGS", "USD 1,234.5", "24500" -> a number; anything without a clear number -> null. */
+export function toNumber(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v !== "string") return null;
+  const t = v.replace(/\s/g, ""); // \s also covers non-breaking spaces
+  const m = t.match(/-?\d[\d,]*(?:\.\d+)?|-?\.\d+/);
+  if (!m) return null;
+  let n = m[0];
+  // "1.234,56" (European) -> 1234.56; otherwise commas are thousands separators.
+  if (/^\-?\d{1,3}(\.\d{3})+,\d+$/.test(t.match(/-?[\d.,]+/)?.[0] ?? "")) n = (t.match(/-?[\d.,]+/)![0]).replace(/\./g, "").replace(",", ".");
+  else n = n.replace(/,/g, "");
+  const x = Number(n);
+  return Number.isFinite(x) ? x : null;
+}
+
+/** Turns the number fields the model wrote as text back into numbers. */
+export function numbersOf(p: Extracted): Extracted {
+  const out: Record<string, unknown> = { ...p };
+  for (const k of NUMBER_FIELDS) out[k] = toNumber(out[k]);
+  const pc = toNumber(out.package_count);
+  out.package_count = pc == null ? null : Math.round(pc);
+  if (Array.isArray(p.line_items)) {
+    out.line_items = p.line_items.map((l) => {
+      const o: Record<string, unknown> = { ...l };
+      for (const k of LINE_NUMBER_FIELDS) o[k] = toNumber(o[k]);
+      return o;
+    });
+  }
+  return out as Extracted;
 }
 
 /** Empty strings mean "not on the document"; store them as null. */

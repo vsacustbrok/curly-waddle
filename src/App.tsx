@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import Board from "./pages/Board";
 import Dictation from "./pages/Dictation";
 import { NewVersionBanner } from "./lib/version";
+import { copyIsDue, daysSince } from "./lib/offsite";
 
 // Every other screen is downloaded only when it is first opened, so the first load stays small.
 const JobNew = lazy(() => import("./pages/JobNew"));
@@ -145,6 +146,7 @@ export default function App() {
       </header>
       <main>
           <NewVersionBanner />
+          {role === "owner" && <OffsiteReminder />}
         <Suspense fallback={<p className="muted">Loading…</p>}>
         <Routes>
           <Route path="/" element={<Board />} />
@@ -176,5 +178,23 @@ export default function App() {
       </main>
       <Dictation />
     </>
+  );
+}
+
+/** Owner only: a reminder when the last off-site copy is a week old (hidden on the Security page itself). */
+function OffsiteReminder() {
+  const { pathname } = useLocation();
+  const [last, setLast] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    supabase.from("offsite_copies").select("made_at").order("id", { ascending: false }).limit(1)
+      .then(({ data, error }) => setLast(error ? undefined : (data?.[0]?.made_at as string | undefined) ?? null));
+  }, [pathname === "/security"]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (last === undefined || pathname === "/security" || !copyIsDue(last)) return null;
+  const ago = daysSince(last);
+  return (
+    <p className="warn no-print" role="status">
+      {ago == null ? "No off-site copy of your records has been saved yet." : `Your last off-site copy was ${ago} days ago.`}{" "}
+      <NavLink to="/security">Save an off-site copy</NavLink> to a USB drive or your own cloud drive.
+    </p>
   );
 }

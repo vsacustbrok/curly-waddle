@@ -409,7 +409,10 @@ function EntryLodgement() {
 export default function Reports() {
   return (
     <>
-      <h1>Reports</h1>
+      <div className="row spread wrap">
+        <h1>Reports</h1>
+        <Link className="button-like" to="/reports/turnaround">Turnaround report</Link>
+      </div>
       <MyDailyReport />
       <DocumentsReceived />
       <EntryLodgement />

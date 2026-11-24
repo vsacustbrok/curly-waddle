@@ -22,6 +22,7 @@ const Help = lazy(() => import("./pages/Help"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Advances = lazy(() => import("./pages/Advances"));
 const Permits = lazy(() => import("./pages/Permits"));
+const Turnaround = lazy(() => import("./pages/Turnaround"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const Alerts = lazy(() => import("./pages/Alerts"));
@@ -175,6 +176,7 @@ export default function App() {
           <Route path="/help" element={<Help />} />
           <Route path="/advances" element={<Advances />} />
           <Route path="/permits" element={<Permits />} />
+          <Route path="/reports/turnaround" element={<Turnaround />} />
           <Route path="/dashboard" element={role === "owner" ? <Dashboard /> : <Navigate to="/" />} />
           <Route path="/bir-books" element={role === "owner" || role === "billing" ? <BirBooks /> : <Navigate to="/" />} />
           <Route path="/bir/:id" element={<BirPrint />} />

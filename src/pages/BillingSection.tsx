@@ -29,7 +29,10 @@ export default function BillingSection({ job, role, termsDays, onJobSaved }: {
   const [bir, setBir] = useState<BirSettings | null>(null);
   const [notice, setNotice] = useState("");
 
+  const [advUnbilled, setAdvUnbilled] = useState<{ id: number; advance_id: number; amount: number }[]>([]);
   const load = useCallback(async () => {
+    supabase.from("advance_lines").select("id, advance_id, amount").eq("job_id", job.id).eq("kind", "spent").eq("billable", true).is("charge_id", null)
+      .then(({ data }) => setAdvUnbilled((data as { id: number; advance_id: number; amount: number }[]) ?? []));
     const [c, p, d, b] = await Promise.all([
       supabase.from("charges").select("*").eq("job_id", job.id).order("id"),
       supabase.from("payments").select("*").eq("job_id", job.id).order("paid_on"),
@@ -129,6 +132,12 @@ export default function BillingSection({ job, role, termsDays, onJobSaved }: {
 
   return (
     <section className="card billing">
+      {advUnbilled.length > 0 && (
+        <p className="warn" role="status">
+          {peso(advUnbilled.reduce((s, l) => s + Number(l.amount), 0))} spent on this shipment from cash advances is not on the billing yet.{" "}
+          <Link to={`/advances?id=${advUnbilled[0].advance_id}`}>Open the advance</Link> and use Add to billing.
+        </p>
+      )}
       <div className="row spread">
         <h2>Billing</h2>
         {charges.length > 0 && (

@@ -681,3 +681,14 @@ tr.voided td:last-child, tr.voided td:nth-last-child(2) { text-decoration: none;
 .viz-tip { position: absolute; top: 4px; transform: translateX(-50%); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px;
   box-shadow: 0 4px 14px rgb(0 0 0 / .12); font-size: 12px; display: grid; gap: 2px; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .viz-head { margin-bottom: 4px; }
+/* Cash advances */
+tr.selected td { background: #eef4fb; }
+.advance-card { border-left: 4px solid var(--accent); }
+.sign-lines { margin-top: 28px; display: flex; gap: 48px; font-size: 12px; }
+.sign-lines .line { display: block; width: 220px; border-bottom: 1px solid #111; height: 30px; margin-bottom: 4px; }
+@media print {
+  body:has(.advance-card) main > *:not(.advance-card) { display: none !important; }
+  .advance-card { border: none; box-shadow: none; }
+  .advance-card .print-only { display: flex; }
+  .advance-card button { display: none !important; }
+}

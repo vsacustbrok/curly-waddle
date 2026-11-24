@@ -37,6 +37,20 @@ export default function Duties() {
   const [busy, setBusy] = useState(false);
   const canSave = !!job && canEditJobs(profile!.role);
   const canBill = !!job && (profile?.role === "owner" || profile?.role === "billing");
+  const isOwner = profile?.role === "owner";
+
+  /** Owner: keep a code and rate typed on this shipment, so later shipments fill it in by themselves. */
+  async function saveRate(k: number) {
+    const it = inp.items[k];
+    const code = normAhtn(it.ahtn);
+    if (!code || it.rate == null) return;
+    if (!confirm(`Save AHTN ${showAhtn(code)} at ${it.rate}% (MFN) in the duty rate table? Later shipments with this code will use it.`)) return;
+    const row = { ahtn_code: code, description: it.description.trim() || null, mfn_rate: it.rate, fta_rates: {}, note: job ? `From ${job.job_no}` : null };
+    const { error } = await supabase.from("tariff_rates").upsert(row);
+    if (error) { setError(error.message); return; }
+    setRates((m) => new Map(m).set(code, row as TariffRate));
+    setMsg(`AHTN ${showAhtn(code)} saved in the duty rate table.`);
+  }
 
   // Prefill from the shipment: invoice lines (one item each), lodgment details and recorded port charges.
   const fromShipment = useCallback(async (j: Job, s: DutySettings, rateMap: Map<string, TariffRate>): Promise<DutyInput> => {
@@ -177,6 +191,9 @@ export default function Duties() {
                     <td>
                       <input value={it.ahtn ? showAhtn(it.ahtn) : ""} onChange={(e) => setItem(k, { ahtn: e.target.value })} onBlur={(e) => lookup(k, e.target.value)} placeholder="0207.14.91" aria-label={`Item ${k + 1} AHTN code`} style={{ width: "9em" }} />
                       {row && <div className="small muted">{row.description}</div>}
+                      {!row && isOwner && normAhtn(it.ahtn) && it.rate != null && (
+                        <button type="button" className="link small" onClick={() => saveRate(k)}>Save to rate table</button>
+                      )}
                     </td>
                     <td className="num">
                       <input inputMode="decimal" value={it.rate ?? ""} onChange={(e) => setItem(k, { rate: optNum(e.target.value) })} aria-label={`Item ${k + 1} rate of duty`} style={{ width: "5em" }} className={it.rate == null && it.quota === "none" ? "bad" : ""} />

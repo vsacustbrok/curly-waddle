@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchAll, supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { alertsFor } from "../lib/alerts";
+import { SOON_DAYS, alertsFor, estimatesFor, loadFreeRules } from "../lib/alerts";
+import { freeTime, moneyAtRisk, type FreeRule } from "../lib/freetime";
+import { peso } from "../lib/billing";
 import { matchesSearch, searchAllYears, searchText, type FoundJob } from "../lib/search";
 import { OPEN_TRIP_STATUSES, PURPOSE_LABEL, TRIP_STATUS_LABEL, type Purpose, type TripStatus } from "../lib/riders";
 import { STATUSES, STATUS_LABEL, allowedNextStatuses, dateTime, dayLabel, pretty, type Job, type Role, type JobStatus } from "../lib/types";
@@ -122,6 +124,8 @@ export default function Board() {
   const [open, setOpen] = useState<JobStatus | null>(null);
   const [downloading, setDownloading] = useState<JobStatus | null>(null);
   const errands = useOpenErrands();
+  const [freeRules, setFreeRules] = useState<FreeRule[]>([]);
+  useEffect(() => { loadFreeRules().then(setFreeRules, () => {}); }, []);
 
   useEffect(() => {
     // The board is for this year's work: shipments lodged this year, or not lodged yet.
@@ -302,7 +306,14 @@ export default function Board() {
                     {s === "tabs" && (j.tabs_ref || j.tabs_at) && (
                       <span className="small kw-tabs">TABS {j.tabs_ref}{j.tabs_at && ` · ${dateTime(j.tabs_at)}`}</span>
                     )}
-                    {alertsFor(j).map((a) => <span key={a.kind} className={"alert-chip " + a.level}>{a.label}</span>)}
+                    {(() => {
+                      const lines = freeTime(j, freeRules, today);
+                      const m = moneyAtRisk(lines);
+                      return <>
+                        {alertsFor(j, today, SOON_DAYS, estimatesFor(lines)).map((a) => <span key={a.kind} className={"alert-chip " + a.level}>{a.label}</span>)}
+                        {m.now > 0 && <span className="alert-chip overdue" title={`Storage and demurrage so far; ${peso(m.in3Days)} if still at the port in 3 days`}>₱ {peso(m.now).slice(1)} running</span>}
+                      </>;
+                    })()}
                     <CheckBadge scans={j.scan_results} />
                     {targetsFor(j).length > 0 && (
                       <span className="card-move" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>

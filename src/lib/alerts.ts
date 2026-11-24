@@ -2,10 +2,13 @@
 // Overdue = the date has passed; today; soon = within the next few days.
 import { STATUSES, type Job, type JobStatus } from "./types";
 import { fetchAll, supabase } from "./supabase";
+import { freeTime, moneyAtRisk, type FreeLine, type FreeRule } from "./freetime";
 
 export type AlertKind = "eta" | "cro" | "storage" | "demurrage" | "tabs" | "empty";
 export type AlertLevel = "overdue" | "today" | "soon";
-export type Alert = { kind: AlertKind; level: AlertLevel; due: string; label: string; days: number };
+export type Alert = { kind: AlertKind; level: AlertLevel; due: string; label: string; days: number; estimated?: boolean };
+/** Last free days worked out from the ETA and the free-time rules, used when none is typed on the shipment. */
+export type Estimates = { storage?: string; demurrage?: string };
 
 export const ALERT_KIND_LABEL: Record<AlertKind, string> = {
   eta: "Arrived, not lodged", cro: "CRO validity", storage: "Storage free time", demurrage: "Demurrage free time",
@@ -26,14 +29,14 @@ type AlertJob = Pick<Job, "status" | "eta" | "cro_valid_until" | "tabs_at" | "em
   Partial<Pick<Job, "storage_free_until" | "demurrage_free_until" | "empty_return_due">>;
 
 /** The open deadlines of one shipment, most urgent first. Billed shipments have none. */
-export function alertsFor(j: AlertJob, today = localToday(), soonDays = SOON_DAYS): Alert[] {
+export function alertsFor(j: AlertJob, today = localToday(), soonDays = SOON_DAYS, est: Estimates = {}): Alert[] {
   if (j.status === "billed") return [];
   const out: Alert[] = [];
-  const add = (kind: AlertKind, due: string | null | undefined, describe: (days: number) => string) => {
+  const add = (kind: AlertKind, due: string | null | undefined, describe: (days: number) => string, estimated = false) => {
     if (!due) return;
     const days = dayCount(today, due.slice(0, 10));
     if (days > soonDays) return;
-    out.push({ kind, due: due.slice(0, 10), days, level: days < 0 ? "overdue" : days === 0 ? "today" : "soon", label: describe(days) });
+    out.push({ kind, due: due.slice(0, 10), days, level: days < 0 ? "overdue" : days === 0 ? "today" : "soon", label: describe(days) + (estimated ? " (est.)" : ""), estimated });
   };
   const when = (days: number, past: string, now: string, ahead: string) =>
     days < 0 ? `${past} ${-days} day${days === -1 ? "" : "s"} ago` : days === 0 ? now : `${ahead} in ${days} day${days === 1 ? "" : "s"}`;
@@ -43,8 +46,8 @@ export function alertsFor(j: AlertJob, today = localToday(), soonDays = SOON_DAY
   // Before pull-out: CRO, storage and container free time all run against the shipment.
   if (before(j.status, "delivered")) {
     add("cro", j.cro_valid_until, (d) => when(d, "CRO expired", "CRO expires today", "CRO expires"));
-    add("storage", j.storage_free_until, (d) => when(d, "Storage charges since", "Last free storage day", "Storage free time ends"));
-    add("demurrage", j.demurrage_free_until, (d) => when(d, "Demurrage since", "Last free container day", "Demurrage starts"));
+    add("storage", j.storage_free_until ?? est.storage, (d) => when(d, "Storage charges since", "Last free storage day", "Storage free time ends"), !j.storage_free_until && !!est.storage);
+    add("demurrage", j.demurrage_free_until ?? est.demurrage, (d) => when(d, "Demurrage since", "Last free container day", "Demurrage starts"), !j.demurrage_free_until && !!est.demurrage);
   }
   // An appointment booked but the container not out yet.
   if (before(j.status, "delivered") && j.tabs_at) {
@@ -62,8 +65,25 @@ export function alertsFor(j: AlertJob, today = localToday(), soonDays = SOON_DAY
 
 export const LEVEL_LABEL: Record<AlertLevel, string> = { overdue: "Overdue", today: "Due today", soon: `Next ${SOON_DAYS} days` };
 
-const FIELDS = "id, job_no, status, eta, cro_valid_until, storage_free_until, demurrage_free_until, tabs_at, tabs_ref, empty_return_date, empty_return_due, entry_no, bl_awb_no, containers, trucker_plate_no, clients(name), processor:profiles!jobs_processor_id_fkey(full_name,email)";
-export type AlertRow = { job: Job; alert: Alert };
+const FIELDS = "id, job_no, status, eta, carrier, container_size, cro_valid_until, storage_free_until, demurrage_free_until, tabs_at, tabs_ref, empty_return_date, empty_return_due, entry_no, bl_awb_no, containers, trucker_plate_no, clients(name), processor:profiles!jobs_processor_id_fkey(full_name,email)";
+export type AlertRow = { job: Job; alert: Alert; money?: { now: number; in3Days: number; missingRate: boolean }; lines?: FreeLine[] };
+
+let rulesCache: { at: number; rules: Promise<FreeRule[]> } | null = null;
+/** The free-time rules (owner's free days and daily rates), kept for a minute. */
+export function loadFreeRules(fresh = false): Promise<FreeRule[]> {
+  if (!fresh && rulesCache && Date.now() - rulesCache.at < 60_000) return rulesCache.rules;
+  const rules = Promise.resolve(supabase.from("free_time_rules").select("*").order("kind").order("name"))
+    .then(({ data, error }) => { if (error) throw new Error(error.message); return (data as FreeRule[]) ?? []; });
+  rulesCache = { at: Date.now(), rules };
+  rules.catch(() => { rulesCache = null; });
+  return rules;
+}
+/** The estimated last free days of a shipment, for alertsFor. */
+export function estimatesFor(lines: FreeLine[]): Estimates {
+  const e: Estimates = {};
+  for (const l of lines) if (l.estimated) e[l.kind] = l.until;
+  return e;
+}
 let cache: { at: number; rows: Promise<AlertRow[]> } | null = null;
 
 /**
@@ -72,9 +92,15 @@ let cache: { at: number; rows: Promise<AlertRow[]> } | null = null;
  */
 export function loadAlerts(fresh = false): Promise<AlertRow[]> {
   if (!fresh && cache && Date.now() - cache.at < 60_000) return cache.rows;
-  const rows = fetchAll<Job>((a, b) => supabase.from("jobs").select(FIELDS).neq("status", "billed").order("job_no").range(a, b) as never)
-    .then((jobs) => jobs.flatMap((job) => alertsFor(job).map((alert) => ({ job, alert })))
-      .sort((x, y) => x.alert.days - y.alert.days || x.job.job_no.localeCompare(y.job.job_no)));
+  const today = localToday();
+  const rows = Promise.all([
+    fetchAll<Job>((a, b) => supabase.from("jobs").select(FIELDS).neq("status", "billed").order("job_no").range(a, b) as never),
+    loadFreeRules(fresh).catch(() => [] as FreeRule[]),
+  ]).then(([jobs, rules]) => jobs.flatMap((job) => {
+      const lines = freeTime(job, rules, today);
+      const money = moneyAtRisk(lines);
+      return alertsFor(job, today, SOON_DAYS, estimatesFor(lines)).map((alert) => ({ job, alert, lines, money }));
+    }).sort((x, y) => x.alert.days - y.alert.days || x.job.job_no.localeCompare(y.job.job_no)));
   cache = { at: Date.now(), rows };
   rows.catch(() => { cache = null; });
   return rows;

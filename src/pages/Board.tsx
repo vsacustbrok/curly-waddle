@@ -4,6 +4,7 @@ import { fetchAll, supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { alertsFor } from "../lib/alerts";
 import { matchesSearch, searchAllYears, searchText, type FoundJob } from "../lib/search";
+import { OPEN_TRIP_STATUSES, PURPOSE_LABEL, TRIP_STATUS_LABEL, type Purpose, type TripStatus } from "../lib/riders";
 import { STATUSES, STATUS_LABEL, allowedNextStatuses, dateTime, dayLabel, pretty, type Job, type Role, type JobStatus } from "../lib/types";
 
 // The stages each role acts on, highlighted on their board.
@@ -119,6 +120,7 @@ export default function Board() {
   const [mine, setMine] = useState(false);
   const [open, setOpen] = useState<JobStatus | null>(null);
   const [downloading, setDownloading] = useState<JobStatus | null>(null);
+  const errands = useOpenErrands();
 
   useEffect(() => {
     // The board is for this year's work: shipments lodged this year, or not lodged yet.
@@ -290,6 +292,11 @@ export default function Board() {
                     {j.vessel_note && STATUSES.indexOf(s) < STATUSES.indexOf("delivered") && (
                       <span className="small muted vessel-note" title={j.vessel_checked_at ? `Checked ${dateTime(j.vessel_checked_at)}` : undefined}>⚓ {j.vessel_note}</span>
                     )}
+                    {(errands.get(j.id) ?? []).map((e) => (
+                      <span key={e.id} className="rider-chip" title={`${e.rider} · ${dayLabel(e.date)}`}>
+                        🛵 {PURPOSE_LABEL[e.purpose]}{e.details ? ` · ${e.details}` : ""} · {TRIP_STATUS_LABEL[e.status]}
+                      </span>
+                    ))}
                     {s === "gatepass" && j.gatepass_ref && <span className="small kw-gatepass">Gatepass {j.gatepass_ref}</span>}
                     {s === "tabs" && (j.tabs_ref || j.tabs_at) && (
                       <span className="small kw-tabs">TABS {j.tabs_ref}{j.tabs_at && ` · ${dateTime(j.tabs_at)}`}</span>
@@ -374,4 +381,27 @@ export default function Board() {
       )}
     </>
   );
+}
+
+type Errand = { id: number; purpose: Purpose; details: string | null; status: TripStatus; date: string; rider: string };
+/** Rider errands for a shipment that are still open (logged in the last 14 days), by shipment. */
+function useOpenErrands(): Map<string, Errand[]> {
+  const [byJob, setByJob] = useState<Map<string, Errand[]>>(new Map());
+  useEffect(() => {
+    const d = new Date(); d.setDate(d.getDate() - 14);
+    const since = d.toISOString().slice(0, 10);
+    supabase.from("rider_trips").select("id, job_id, purpose, details, status, rider_logs!inner(log_date, riders(name))")
+      .in("status", OPEN_TRIP_STATUSES).not("job_id", "is", null).gte("rider_logs.log_date", since).limit(500)
+      .then(({ data }) => {
+        const m = new Map<string, Errand[]>();
+        for (const t of (data ?? []) as unknown as { id: number; job_id: string; purpose: Purpose; details: string | null; status: TripStatus;
+          rider_logs: { log_date: string; riders: { name: string } | null } }[]) {
+          const list = m.get(t.job_id) ?? [];
+          list.push({ id: t.id, purpose: t.purpose, details: t.details, status: t.status, date: t.rider_logs.log_date, rider: t.rider_logs.riders?.name ?? "" });
+          m.set(t.job_id, list);
+        }
+        setByJob(m);
+      });
+  }, []);
+  return byJob;
 }

@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
 import { ROLES, pretty, type Role } from "../lib/types";
-import { REMIND_AFTER_DAYS, copyIsDue, daysSince, readme, zipPaths, type CopyRow, type DocRow } from "../lib/offsite";
+import { REMIND_AFTER_DAYS, copyIsDue, daysSince, readme, safeName, zipPaths, type CopyRow, type DocRow } from "../lib/offsite";
 
 type Invite = { email: string; role: Role; created_at: string };
 type Backup = { id: number; created_at: string; size_bytes: number };
@@ -125,8 +125,24 @@ export default function Security() {
         bytes += u8.length;
         entries[paths.get(doc.id)!] = [u8, { level: 0 }];
       }
+      // Rider photos (receipts, signed receiving copies): rider photos/<date> <rider>/...
+      let photoQuery = supabase.from("rider_photos").select("id, kind, file_path, uploaded_at, rider_logs(log_date, riders(name))").order("id");
+      if (since) photoQuery = photoQuery.gt("uploaded_at", since);
+      const ph = await photoQuery;
+      if (ph.error) throw new Error(ph.error.message);
+      const photos = (ph.data ?? []) as unknown as { id: number; kind: string; file_path: string; rider_logs: { log_date: string; riders: { name: string } | null } | null }[];
+      let photosIn = 0;
+      for (const [n, photo] of photos.entries()) {
+        setProgress(`Adding rider photo ${n + 1} of ${photos.length}…`);
+        const name = `rider photos/${safeName(`${photo.rider_logs?.log_date ?? ""} ${photo.rider_logs?.riders?.name ?? ""}`)}/${photo.kind} ${photo.id}.jpg`;
+        const f = await supabase.storage.from("rider-files").download(photo.file_path);
+        if (f.error || !f.data) { missing.push(name); continue; }
+        const u8 = new Uint8Array(await f.data.arrayBuffer());
+        bytes += u8.length; photosIn++;
+        entries[name] = [u8, { level: 0 }];
+      }
       const made = new Date();
-      entries["READ ME.txt"] = [strToU8(readme(made, latest?.created_at ?? null, docs.length - missing.length, missing, since)), { level: 6 }];
+      entries["READ ME.txt"] = [strToU8(readme(made, latest?.created_at ?? null, docs.length - missing.filter((m) => m.startsWith("documents/")).length, missing, since, photosIn)), { level: 6 }];
       setProgress("Packing the ZIP file…");
       const out = await new Promise<Uint8Array>((ok, fail) => zip(entries, (err, data) => (err ? fail(err) : ok(data))));
       const url = URL.createObjectURL(new Blob([out as BlobPart], { type: "application/zip" }));
@@ -137,7 +153,7 @@ export default function Security() {
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       const { data: u } = await supabase.auth.getUser();
       const rec = await supabase.from("offsite_copies").insert({
-        made_by: u.user?.id, backup_id: latest?.id ?? null, files_included: docs.length - missing.length, bytes, only_new_since: since,
+        made_by: u.user?.id, backup_id: latest?.id ?? null, files_included: docs.length + photosIn - missing.filter((m) => m.startsWith("documents/")).length, bytes, only_new_since: since,
       });
       if (rec.error) throw new Error(rec.error.message);
       if (missing.length) setError(`${missing.length} file(s) could not be downloaded and are listed in "READ ME.txt" inside the ZIP. Try again later.`);

@@ -54,3 +54,19 @@ export function riderDayOpen(date: string, today: string): boolean {
   const yesterday = `${y.getFullYear()}-${p(y.getMonth() + 1)}-${p(y.getDate())}`;
   return date === today || date === yesterday;
 }
+
+// ---------- Photos (receipts, signed receiving copies) ----------
+export const PHOTO_KINDS = ["receipt", "proof", "other"] as const;
+export type PhotoKind = (typeof PHOTO_KINDS)[number];
+export const PHOTO_KIND_LABEL: Record<PhotoKind, string> = { receipt: "Receipt (gas, toll, parking…)", proof: "Signed receiving copy", other: "Other photo" };
+export type RiderPhoto = {
+  id: number; log_id: number; trip_id: number | null; kind: PhotoKind; amount: number | null; note: string | null;
+  file_path: string; size_bytes: number | null; uploaded_at: string;
+};
+/** Where a photo is stored: <rider id>/<log id>/<time>-<random>.jpg (the database checks the folders). */
+export const photoPath = (riderId: number, logId: number, now = Date.now(), rand = Math.random().toString(36).slice(2, 8)) =>
+  `${riderId}/${logId}/${now}-${rand}.jpg`;
+
+/** Errands that are still open (not done, not "not done"). */
+export const OPEN_TRIP_STATUSES: TripStatus[] = ["pending", "picked_up", "rescheduled"];
+export const isOpenTrip = (s: TripStatus) => OPEN_TRIP_STATUSES.includes(s);

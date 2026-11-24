@@ -26,3 +26,8 @@ Deno.test("read-me lists missing files", () => {
   assertEquals(t.includes("NOT in this copy"), true);
   assertEquals(t.includes("documents/A/x.pdf"), true);
 });
+
+Deno.test("read-me mentions rider photos when there are some", () => {
+  assertEquals(readme(new Date(), null, 1, [], null, 3).includes("Rider photos (receipts, signed receiving copies): 3"), true);
+  assertEquals(readme(new Date(), null, 1, [], null).includes("Rider photos"), false);
+});

@@ -38,12 +38,13 @@ export function zipPaths(docs: DocRow[]): Map<string, string> {
   return out;
 }
 
-export function readme(made: Date, backupAt: string | null, files: number, missing: string[], since: string | null): string {
+export function readme(made: Date, backupAt: string | null, files: number, missing: string[], since: string | null, photos = 0): string {
   return [
     "VSA Customs Brokerage - off-site copy",
     `Made: ${made.toLocaleString()}`,
     `Nightly backup inside: ${backupAt ? new Date(backupAt).toLocaleString() : "none yet"} (backup.json)`,
     since ? `Documents: only the ${files} uploaded since ${new Date(since).toLocaleString()} (keep the earlier copies too).` : `Documents: ${files} uploaded files, one folder per PN.`,
+    ...(photos ? [`Rider photos (receipts, signed receiving copies): ${photos}, in "rider photos", one folder per day and rider.`] : []),
     ...(missing.length ? ["", "These files could not be downloaded and are NOT in this copy:", ...missing.map((m) => `- ${m}`)] : []),
     "",
     "Keep this file somewhere outside the system: a USB drive, an external disk or your own cloud drive.",

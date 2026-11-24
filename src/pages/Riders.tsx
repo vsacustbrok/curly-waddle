@@ -8,10 +8,11 @@ import { useAuth } from "../lib/auth";
 import { dayLabel, type Profile } from "../lib/types";
 import { money, peso } from "../lib/billing";
 import {
-  PURPOSES, PURPOSE_LABEL, SHIPPING_LINES, TRIP_STATUSES, TRIP_STATUS_LABEL, blankTrip, distanceOf, expensesOf, hhmm, riderDayOpen,
-  type Purpose, type Rider, type RiderLog, type Trip, type TripStatus,
+  PHOTO_KINDS, PHOTO_KIND_LABEL, PURPOSES, PURPOSE_LABEL, SHIPPING_LINES, TRIP_STATUSES, TRIP_STATUS_LABEL, blankTrip, distanceOf, expensesOf,
+  hhmm, photoPath, riderDayOpen, type PhotoKind, type Purpose, type Rider, type RiderLog, type RiderPhoto, type Trip, type TripStatus,
 } from "../lib/riders";
 import { today } from "./JobFields";
+import { shrinkPhoto } from "../lib/photo";
 
 type Tab = "log" | "reports" | "riders";
 const text = (v: string | null | undefined) => (v ?? "").trim() || null;
@@ -256,8 +257,15 @@ function DailyLog({ riders, mine, isRider, reloadRiders }: { riders: Rider[]; mi
         <div className="row" style={{ marginTop: 12 }}>
           <button disabled={busy || locked || !riderId}>{busy ? "Saving…" : form.id ? "Save changes" : "Save record"}</button>
           {saved && <span className="ok-text" role="status">{saved}</span>}
+          {riderId && <Link className="button-like" to={`/riders/sheet/${riderId}/${date}`} target="_blank" rel="noopener">Print trip sheet</Link>}
         </div>
       </form>
+
+      {form.id && riderId ? (
+        <RiderPhotos logId={form.id} riderId={riderId} trips={form.trips.filter((t) => t.id)} locked={locked} />
+      ) : (
+        <section className="card"><h2>Photos and receipts</h2><p className="muted">Save the record first, then add photos of receipts and signed receiving copies here.</p></section>
+      )}
 
       <section className="card">
         <h2>Saved records on {dayLabel(date)} <span className="count">{dayLogs.length}</span></h2>
@@ -277,6 +285,118 @@ function DailyLog({ riders, mine, isRider, reloadRiders }: { riders: Rider[]; mi
         ))}
       </section>
     </>
+  );
+}
+
+// ---------- Photos of receipts and signed receiving copies ----------
+
+function RiderPhotos({ logId, riderId, trips, locked }: { logId: number; riderId: number; trips: Trip[]; locked: boolean }) {
+  const [photos, setPhotos] = useState<RiderPhoto[]>([]);
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [kind, setKind] = useState<PhotoKind>("receipt");
+  const [tripId, setTripId] = useState<number | "">("");
+  const [amt, setAmt] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.from("rider_photos").select("*").eq("log_id", logId).order("id");
+    if (error) { setError(error.message); return; }
+    const list = (data as RiderPhoto[]) ?? [];
+    setPhotos(list);
+    if (list.length) {
+      const { data: signed } = await supabase.storage.from("rider-files").createSignedUrls(list.map((p) => p.file_path), 3600);
+      setUrls(Object.fromEntries((signed ?? []).filter((x) => x.signedUrl && x.path).map((x) => [x.path as string, x.signedUrl as string])));
+    }
+  }, [logId]);
+  useEffect(() => { setError(""); load(); }, [load]);
+
+  async function add(files: FileList | null) {
+    if (!files?.length) return;
+    const money = amt.trim() === "" ? null : Number(amt.replace(/,/g, ""));
+    if (money != null && !(money >= 0)) { setError("Enter the amount as a number, or leave it blank."); return; }
+    setError("");
+    for (const [i, file] of [...files].entries()) {
+      setBusy(files.length > 1 ? `Uploading ${i + 1} of ${files.length}…` : "Uploading…");
+      try {
+        const blob = await shrinkPhoto(file);
+        const path = photoPath(riderId, logId);
+        const up = await supabase.storage.from("rider-files").upload(path, blob, { contentType: "image/jpeg" });
+        if (up.error) throw new Error(up.error.message);
+        const row = { log_id: logId, trip_id: tripId || null, kind, amount: i === 0 ? money : null, note: note.trim() || null, file_path: path, size_bytes: blob.size };
+        const { error } = await supabase.from("rider_photos").insert(row);
+        if (error) { await supabase.storage.from("rider-files").remove([path]); throw new Error(error.message); }
+      } catch (e) {
+        setError(`${file.name}: ${(e as Error).message}`);
+        break;
+      }
+    }
+    setBusy(""); setAmt(""); setNote("");
+    await load();
+  }
+  async function remove(p: RiderPhoto) {
+    if (!confirm("Remove this photo?")) return;
+    setBusy("Removing…");
+    const { error } = await supabase.from("rider_photos").delete().eq("id", p.id);
+    if (!error) await supabase.storage.from("rider-files").remove([p.file_path]);
+    setBusy("");
+    if (error) setError(error.message);
+    await load();
+  }
+
+  const tripName = (id: number | null) => {
+    const i = trips.findIndex((t) => t.id === id);
+    return i < 0 ? "" : `Trip ${i + 1}${trips[i].to_place ? ` (${trips[i].to_place})` : ""}`;
+  };
+  const receipts = photos.filter((p) => p.kind === "receipt" && p.amount != null).reduce((a, p) => a + Number(p.amount), 0);
+
+  return (
+    <section className="card">
+      <h2>Photos and receipts <span className="count">{photos.length}</span></h2>
+      {!locked && (
+        <div className="grid">
+          <label>What is it
+            <select value={kind} onChange={(e) => setKind(e.target.value as PhotoKind)}>
+              {PHOTO_KINDS.map((k) => <option key={k} value={k}>{PHOTO_KIND_LABEL[k]}</option>)}
+            </select>
+          </label>
+          <label>For which trip (optional)
+            <select value={tripId} onChange={(e) => setTripId(Number(e.target.value) || "")}>
+              <option value="">The whole day</option>
+              {trips.map((t) => <option key={t.id} value={t.id}>{tripName(t.id!)}</option>)}
+            </select>
+          </label>
+          {kind === "receipt" && <label>Amount on the receipt (₱)<input inputMode="decimal" value={amt} onChange={(e) => setAmt(e.target.value)} placeholder="0.00" /></label>}
+          <label>Note (optional)<input value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Petron gas, NAIA toll" /></label>
+          <label className="photo-pick">
+            <span className="button-like">{busy || "📷 Take or choose photo"}</span>
+            <input type="file" accept="image/*" capture="environment" multiple disabled={!!busy} hidden
+              onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
+          </label>
+        </div>
+      )}
+      {error && <p className="error" role="alert">{error}</p>}
+      {photos.length === 0 ? <p className="muted small">No photos yet.</p> : (
+        <>
+          {receipts > 0 && <p className="small">Receipts with an amount: <strong>{peso(receipts)}</strong></p>}
+          <ul className="photo-grid">
+            {photos.map((p) => (
+              <li key={p.id}>
+                <a href={urls[p.file_path]} target="_blank" rel="noopener">
+                  {urls[p.file_path] ? <img src={urls[p.file_path]} alt={PHOTO_KIND_LABEL[p.kind]} loading="lazy" /> : <span className="muted small">Loading…</span>}
+                </a>
+                <span className="small"><strong>{p.kind === "receipt" ? "Receipt" : p.kind === "proof" ? "Receiving copy" : "Photo"}</strong>
+                  {p.amount != null && ` · ${peso(Number(p.amount))}`}</span>
+                {p.trip_id && <span className="small muted">{tripName(p.trip_id)}</span>}
+                {p.note && <span className="small muted">{p.note}</span>}
+                {!locked && <button type="button" className="link danger-text small" disabled={!!busy} onClick={() => remove(p)}>Remove</button>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
   );
 }
 

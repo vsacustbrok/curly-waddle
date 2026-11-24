@@ -17,6 +17,7 @@ const Clients = lazy(() => import("./pages/Clients"));
 const Team = lazy(() => import("./pages/Team"));
 const Shipments = lazy(() => import("./pages/Shipments"));
 const Security = lazy(() => import("./pages/Security"));
+const RiderSheet = lazy(() => import("./pages/RiderSheet"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const Alerts = lazy(() => import("./pages/Alerts"));
@@ -108,6 +109,7 @@ export default function App() {
           <Suspense fallback={<p className="muted">Loading…</p>}>
             <Routes>
               <Route path="/riders" element={<Riders />} />
+              <Route path="/riders/sheet/:riderId/:date" element={<RiderSheet />} />
               <Route path="*" element={<Navigate to="/riders" />} />
             </Routes>
           </Suspense>
@@ -160,6 +162,7 @@ export default function App() {
           <Route path="/jobs/:id/print/:form" element={<FormPrint />} />
           <Route path="/collections" element={role === "owner" || role === "billing" ? <Collections /> : <Navigate to="/" />} />
           <Route path="/riders" element={<Riders />} />
+          <Route path="/riders/sheet/:riderId/:date" element={<RiderSheet />} />
           <Route path="/bir-books" element={role === "owner" || role === "billing" ? <BirBooks /> : <Navigate to="/" />} />
           <Route path="/bir/:id" element={<BirPrint />} />
           <Route path="/jobs/:jobId/invoice-preview" element={<BirPrint />} />

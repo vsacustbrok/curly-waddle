@@ -589,3 +589,38 @@ tr.voided td:last-child, tr.voided td:nth-last-child(2) { text-decoration: none;
 @media print {
   .bir-doc { border: none; border-radius: 0; max-width: none; margin: 0; padding: 0; }
 }
+
+/* Rider photos */
+.photo-pick { align-self: end; }
+.photo-grid { list-style: none; padding: 0; margin: 8px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.photo-grid li { display: flex; flex-direction: column; gap: 2px; }
+.photo-grid img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 8px; border: 1px solid var(--line, #d0d7e2); background: #f4f6f9; }
+/* Open rider errands on the board */
+.rider-chip { font-size: 0.78rem; background: #fff4e0; color: #6b4300; border-radius: 6px; padding: 1px 6px; }
+/* Rider trip sheet (printed landscape; the named page keeps other printouts as they are) */
+@page tripsheet { size: landscape; margin: 10mm; }
+.trip-sheet { background: #fff; color: #111; border: 1px solid #ccd; border-radius: 8px; padding: 24px; max-width: 1100px; margin: 12px auto; font-size: 13px; }
+.trip-sheet h1 { font-size: 20px; margin: 2px 0 0; }
+.trip-sheet-head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.trip-sheet-info { border-collapse: collapse; width: auto; }
+.trip-sheet-info th { text-align: left; font-weight: 600; padding: 2px 10px 2px 0; white-space: nowrap; }
+.trip-sheet-info td { border-bottom: 1px solid #999; min-width: 170px; padding: 2px 4px; }
+.trip-sheet-trips { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.trip-sheet-trips th, .trip-sheet-trips td { border: 1px solid #555; padding: 4px; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
+.trip-sheet-trips th { background: #eef1f5; font-size: 12px; }
+.trip-sheet-trips td { height: 34px; }
+.trip-sheet-trips th:nth-child(1) { width: 26px; } .trip-sheet-trips th:nth-child(5), .trip-sheet-trips th:nth-child(6) { width: 52px; }
+.trip-sheet-trips th:nth-child(7) { width: 15%; } .trip-sheet-trips th:nth-child(8) { width: 12%; } .trip-sheet-trips th:nth-child(9) { width: 9%; }
+.trip-sheet-foot { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-top: 16px; }
+.trip-sheet-sign { display: flex; flex-direction: column; gap: 18px; min-width: 260px; }
+.trip-sheet-sign .line { display: block; border-bottom: 1px solid #111; height: 30px; margin-bottom: 4px; }
+@media (max-width: 700px) { .trip-sheet { padding: 12px; overflow-x: auto; } .trip-sheet-trips { min-width: 760px; } }
+@media print {
+  html:has(.trip-sheet), body:has(.trip-sheet) { width: auto !important; height: auto !important; min-height: 0 !important; }
+  body:has(.trip-sheet) { page: tripsheet; }
+  .trip-sheet { font-size: 11px; }
+  main:has(.trip-sheet) { max-width: none !important; width: auto !important; padding: 0 !important; margin: 0 !important; }
+  .trip-sheet-head, .trip-sheet-foot { flex-wrap: nowrap; }
+  .trip-sheet-trips td { height: 30px; }
+  .trip-sheet { border: none; border-radius: 0; max-width: none; margin: 0; padding: 0; }
+}

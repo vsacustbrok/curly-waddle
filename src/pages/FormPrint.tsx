@@ -8,6 +8,7 @@ import { useAuth } from "../lib/auth";
 import { dayLabel, type Job } from "../lib/types";
 import { CHARGE_KINDS, CHARGE_LABEL, money, totals, type Charge } from "../lib/billing";
 import { summarize } from "../lib/shipment";
+import { today } from "../lib/types";
 
 type FormKind = "billing" | "soc";
 type Box = { x: number; y: number; w: number; h?: number; size?: number; align?: "left" | "center" | "right" };
@@ -125,7 +126,7 @@ export default function FormPrint() {
       const boxes = job.containers ?? [];
       setValues({
         billedTo: job.clients?.name ?? "", tin: job.clients?.tin ?? "", address: (job.clients?.address ?? "").replace(/\s*\n\s*/g, ", "),
-        date: dayLabel(job.billed_on ?? new Date().toISOString().slice(0, 10)) ?? "",
+        date: dayLabel(job.billed_on ?? today()) ?? "",
         voyage: [job.vessel ?? s.vessel, job.voyage ?? s.voyage].filter(Boolean).join(" / "), arrival: dayLabel(job.eta) ?? "",
         delivered: job.released_at ? dayLabel(job.released_at.slice(0, 10)) ?? "" : "",
         mbl: job.bl_awb_no ?? "", hbl: "",

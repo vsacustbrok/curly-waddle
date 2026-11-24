@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { dayLabel, type Job } from "../lib/types";
 import { CHARGE_LABEL, METHOD_LABEL, dueDate, money, peso, totals, vatOf, type Charge, type Payment } from "../lib/billing";
+import { today } from "../lib/types";
 
 const LOGO = "/logo.webp";
 
@@ -56,7 +57,7 @@ export default function Soa() {
           </div>
           <dl className="soa-meta">
             <div><dt>SOA no.</dt><dd>{job.soa_no ?? "—"}</dd></div>
-            <div><dt>Date</dt><dd>{dayLabel(job.billed_on) ?? dayLabel(new Date().toISOString().slice(0, 10))}</dd></div>
+            <div><dt>Date</dt><dd>{dayLabel(job.billed_on) ?? dayLabel(today())}</dd></div>
             <div><dt>Due</dt><dd>{dayLabel(due) ?? "—"}</dd></div>
           </dl>
         </header>

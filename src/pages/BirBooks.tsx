@@ -6,9 +6,10 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { dayLabel } from "../lib/types";
 import { DOC_TITLE, amount, collectionsBook, missingSetup, salesBook, vatSummary, type BirDoc, type BirSettings, type BookRow } from "../lib/bir";
+import { today } from "../lib/types";
 
 type Tab = "books" | "details";
-const thisMonth = () => new Date().toISOString().slice(0, 7);
+const thisMonth = () => today().slice(0, 7);
 
 async function downloadBooks(month: string, docs: BirDoc[]) {
   const { default: writeExcelFile } = await import("write-excel-file/browser");

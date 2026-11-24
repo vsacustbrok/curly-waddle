@@ -163,3 +163,10 @@ export function allowedNextStatuses(role: Role, current: JobStatus): JobStatus[]
 }
 export const canEditJobs = (r: Role) => r === "owner" || r === "processor";
 export const canEditClients = (r: Role) => r === "owner" || r === "processor" || r === "billing";
+
+/** Today's date on this computer (the office's own time, Philippine time), as YYYY-MM-DD. */
+export function today(): string {
+  const d = new Date();
+  const p = (x: number) => String(x).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}

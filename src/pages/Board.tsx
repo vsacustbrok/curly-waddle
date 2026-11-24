@@ -6,6 +6,7 @@ import { alertsFor } from "../lib/alerts";
 import { matchesSearch, searchAllYears, searchText, type FoundJob } from "../lib/search";
 import { OPEN_TRIP_STATUSES, PURPOSE_LABEL, TRIP_STATUS_LABEL, type Purpose, type TripStatus } from "../lib/riders";
 import { STATUSES, STATUS_LABEL, allowedNextStatuses, dateTime, dayLabel, pretty, type Job, type Role, type JobStatus } from "../lib/types";
+import { today as localToday } from "../lib/types";
 
 // The stages each role acts on, highlighted on their board.
 const FOCUS: Record<Role, JobStatus[]> = {
@@ -207,7 +208,7 @@ export default function Board() {
     setJobs((rows) => { keep(rows); return rows; });
     setMoved(undoing ? null : { job: { ...j, status: to }, from, to });
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
 
   return (
     <>

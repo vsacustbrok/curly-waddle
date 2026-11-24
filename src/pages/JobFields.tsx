@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { supabase } from "../lib/supabase";
 import {
-  BL_RELEASE_LABEL, BL_RELEASE_TYPES, ENTRY_COLORS, ENTRY_STATUSES, marineTrafficUrl, pretty,
+  BL_RELEASE_LABEL, BL_RELEASE_TYPES, ENTRY_COLORS, ENTRY_STATUSES, marineTrafficUrl, pretty, today,
   type Client, type Job, type Profile, type ServiceType,
 } from "../lib/types";
 
@@ -46,11 +46,7 @@ function toLocalInput(iso: string | null): string {
 /** A date-and-time box value (local time) as a full timestamp, so it shows the same for everyone. */
 const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null);
 /** Today in the viewer's own time zone, as YYYY-MM-DD. */
-export function today(): string {
-  const d = new Date();
-  const p = (x: number) => String(x).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
+export { today };
 
 export const fromJob = (j: Job): JobForm => ({
   job_no: j.job_no, client_id: j.client_id, client_ref_no: j.client_ref_no ?? "", service_type: j.service_type,

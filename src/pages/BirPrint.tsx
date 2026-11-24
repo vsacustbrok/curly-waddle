@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase";
 import { dayLabel } from "../lib/types";
 import { CHARGE_LABEL, vatOf, type Charge } from "../lib/billing";
 import { DOC_TITLE, amount, pesoWords, tinWithBranch, type BirDoc, type BirSettings } from "../lib/bir";
+import { today } from "../lib/types";
 
 type Shown = Pick<BirDoc, "doc_type" | "doc_no" | "issued_on" | "buyer_name" | "buyer_tin" | "buyer_address" | "lines" | "vatable_sales"
   | "vat_amount" | "exempt_sales" | "zero_rated" | "total" | "amount_received" | "ewt_amount" | "seller" | "voided" | "void_reason"
@@ -43,7 +44,7 @@ export default function BirPrint() {
       const vat = charges.filter((x) => x.vatable && vatReg).reduce((a, x) => a + vatOf(x), 0);
       const exempt = lines.filter((l) => !l.vatable).reduce((a, l) => a + l.amount, 0);
       setDoc({
-        doc_type: "invoice", doc_no: "SPECIMEN", issued_on: new Date().toISOString().slice(0, 10), specimen: true,
+        doc_type: "invoice", doc_no: "SPECIMEN", issued_on: today(), specimen: true,
         buyer_name: client?.name ?? "", buyer_tin: client?.tin ?? null, buyer_address: client?.address ?? null,
         lines, vatable_sales: vatable, vat_amount: vat, exempt_sales: exempt, zero_rated: 0, total: vatable + vat + exempt,
         amount_received: null, ewt_amount: 0, seller: settings, voided: false, void_reason: null, issued_by_name: null,

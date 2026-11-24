@@ -57,7 +57,7 @@ export default function BillingSection({ job, role, termsDays, onJobSaved }: {
     e.preventDefault();
     const amount = Number(charge.amount.replace(/,/g, ""));
     if (!(amount >= 0)) { setError("Enter the amount as a number, e.g. 3500 or 3,500.00"); return; }
-    if (await run(() => supabase.from("charges").insert({ job_id: job.id, kind: charge.kind, description: charge.description.trim() || null, amount, vatable: charge.vatable, advance: charge.advance }))) {
+    if (await run(() => supabase.from("charges").insert({ job_id: job.id, kind: charge.kind, description: charge.description.trim() || null, amount, vatable: charge.vatable && !charge.advance, advance: charge.advance }))) {
       setCharge(blankCharge); load();
     }
   }
@@ -179,8 +179,8 @@ export default function BillingSection({ job, role, termsDays, onJobSaved }: {
           </select>
           <input placeholder="Details (optional)" value={charge.description} onChange={(e) => setCharge({ ...charge, description: e.target.value })} aria-label="Charge details" />
           <input placeholder="Amount ₱" inputMode="decimal" value={charge.amount} onChange={(e) => setCharge({ ...charge, amount: e.target.value })} aria-label="Charge amount" required style={{ width: "9em" }} />
-          <label className="check"><input type="checkbox" checked={charge.vatable} onChange={(e) => setCharge({ ...charge, vatable: e.target.checked })} /> + VAT</label>
-          <label className="check"><input type="checkbox" checked={charge.advance} onChange={(e) => setCharge({ ...charge, advance: e.target.checked })} /> Advance for client</label>
+          <label className="check" title={charge.advance ? "Advances paid for the client carry no VAT" : undefined}><input type="checkbox" checked={charge.vatable && !charge.advance} disabled={charge.advance} onChange={(e) => setCharge({ ...charge, vatable: e.target.checked })} /> + VAT</label>
+          <label className="check"><input type="checkbox" checked={charge.advance} onChange={(e) => setCharge({ ...charge, advance: e.target.checked, vatable: e.target.checked ? false : charge.vatable })} /> Advance for client</label>
           <button disabled={busy}>Add charge</button>
         </form>
       )}

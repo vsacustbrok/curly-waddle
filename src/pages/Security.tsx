@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
 import { ROLES, pretty, type Role } from "../lib/types";
 import { REMIND_AFTER_DAYS, copyIsDue, daysSince, readme, safeName, zipPaths, type CopyRow, type DocRow } from "../lib/offsite";
+import { today } from "../lib/types";
 
 type Invite = { email: string; role: Role; created_at: string };
 type Backup = { id: number; created_at: string; size_bytes: number };
@@ -148,7 +149,7 @@ export default function Security() {
       const url = URL.createObjectURL(new Blob([out as BlobPart], { type: "application/zip" }));
       const a = document.createElement("a");
       a.href = url;
-      a.download = `VSA off-site copy ${made.toISOString().slice(0, 10)}${since ? " (new files)" : ""}.zip`;
+      a.download = `VSA off-site copy ${today()}${since ? " (new files)" : ""}.zip`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       const { data: u } = await supabase.auth.getUser();

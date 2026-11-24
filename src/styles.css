@@ -644,3 +644,10 @@ tr.voided td:last-child, tr.voided td:nth-last-child(2) { text-decoration: none;
 .guide-if th { text-align: left; width: 38%; vertical-align: top; font-weight: 600; }
 .guide-group { margin: 18px 0 8px; font-size: 1rem; color: var(--muted, #555); }
 @media print { .help { max-width: none; } .guide { break-inside: avoid; border: none; box-shadow: none; } }
+/* Overdue reminders */
+.chase-btn { margin-left: 8px; }
+.chase { margin: 8px 0 12px; border-left: 4px solid var(--accent, #0b5cab); }
+.chase textarea { width: 100%; font-family: inherit; }
+.chase label { display: block; margin-bottom: 8px; }
+.chase input { width: 100%; }
+.chase-instr { margin-top: 10px; }

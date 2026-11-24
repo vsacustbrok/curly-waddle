@@ -1,13 +1,18 @@
 // Collections: every shipment with a balance still to collect, grouped by client, with aging.
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "../lib/auth";
+import { PAYER_LABEL, TONE_LABEL, draftReminder, mailtoLink, payerScore, toneFor, type Tone } from "../lib/chase";
 import { Link } from "react-router-dom";
 import { fetchAll, supabase } from "../lib/supabase";
 import { STATUS_LABEL, dayLabel, type Job } from "../lib/types";
 import { AGE_LABEL, ageOf, dueDate, money, peso, totals, type AgeBucket, type Charge, type Payment, type Totals } from "../lib/billing";
-import { today } from "./JobFields";
+import { today } from "../lib/types";
 
 const BUCKETS: AgeBucket[] = ["current", "1-30", "31-60", "61-90", "90+"];
 type Item = { job: Job; t: Totals; due: string | null; age: AgeBucket };
+type Pay = Payment & { paid_on: string };
+type Reminder = { id: number; client_id: string; sent_at: string; tone: Tone; total: number };
+const daysFrom = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
 export default function Collections() {
   const [items, setItems] = useState<Item[] | null>(null);
@@ -15,12 +20,19 @@ export default function Collections() {
   const [showPaid, setShowPaid] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pays, setPays] = useState<Pay[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [instructions, setInstructions] = useState<string | null>(null);
+  const [emails, setEmails] = useState<Record<string, string | null>>({});
+  const [drafting, setDrafting] = useState<string | null>(null);
+  const loadReminders = () => supabase.from("collection_reminders").select("id, client_id, sent_at, tone, total").order("sent_at", { ascending: false }).limit(500)
+    .then(({ data }) => setReminders((data as Reminder[]) ?? []));
 
   useEffect(() => {
     (async () => {
       const [charges, payments] = await Promise.all([
         fetchAll<Charge>((a, b) => supabase.from("charges").select("job_id, amount, vatable, advance").order("id").range(a, b) as never),
-        fetchAll<Payment>((a, b) => supabase.from("payments").select("job_id, amount, ewt_amount").order("id").range(a, b) as never),
+        fetchAll<Pay>((a, b) => supabase.from("payments").select("job_id, amount, ewt_amount, paid_on").order("id").range(a, b) as never),
       ]);
       const ids = [...new Set(charges.map((c) => c.job_id))];
       const jobs: Job[] = [];
@@ -29,6 +41,7 @@ export default function Collections() {
         if (error) throw new Error(error.message);
         jobs.push(...((data as unknown as Job[]) ?? []));
       }
+      setPays(payments);
       const now = today();
       setItems(jobs.map((job) => {
         const t = totals(charges.filter((c) => c.job_id === job.id), payments.filter((p) => p.job_id === job.id));
@@ -36,7 +49,16 @@ export default function Collections() {
         return { job, t, due, age: t.balance > 0 ? ageOf(due, now) : "current" };
       }));
     })().catch((e: Error) => { setError(e.message); setItems([]); });
+    loadReminders();
+    supabase.from("bir_settings").select("payment_instructions").maybeSingle().then(({ data }) => setInstructions((data as { payment_instructions: string | null } | null)?.payment_instructions ?? null));
   }, []);
+  // Client emails, for the reminder's "To".
+  useEffect(() => {
+    const ids = [...new Set((items ?? []).map((i) => i.job.client_id))];
+    if (!ids.length) return;
+    supabase.from("clients").select("id, email").in("id", ids.slice(0, 300)).then(({ data }) =>
+      setEmails(Object.fromEntries(((data as { id: string; email: string | null }[]) ?? []).map((c) => [c.id, c.email]))));
+  }, [items]);
 
   const shown = useMemo(() => (items ?? []).filter((i) => showPaid || i.t.balance > 0), [items, showPaid]);
   const byClient = useMemo(() => {
@@ -92,7 +114,12 @@ export default function Collections() {
                 <tbody>
                   {byClient.map((c) => [
                     <tr key={c.id}>
-                      <td><button type="button" className="link" onClick={() => setOpen(open === c.id ? null : c.id)}>{open === c.id ? "▾" : "▸"} {c.name}</button></td>
+                      <td><button type="button" className="link" onClick={() => setOpen(open === c.id ? null : c.id)}>{open === c.id ? "▾" : "▸"} {c.name}</button>
+                        {c.items.some((i) => i.t.balance > 0 && i.age !== "current") && (
+                          <button type="button" className="ghost small chase-btn" onClick={() => { setOpen(c.id); setDrafting(drafting === c.id ? null : c.id); }}>Draft reminder</button>
+                        )}
+                        {(() => { const last = reminders.find((r) => r.client_id === c.id); return last ? <div className="muted small">Last reminder {dayLabel(last.sent_at.slice(0, 10))}</div> : null; })()}
+                      </td>
                       <td className="num">{c.items.length}</td>
                       {BUCKETS.map((b) => {
                         const v = c.items.filter((i) => i.t.balance > 0 && i.age === b).reduce((s, i) => s + i.t.balance, 0);
@@ -102,6 +129,11 @@ export default function Collections() {
                     </tr>,
                     open === c.id && (
                       <tr key={c.id + "-items"}><td colSpan={BUCKETS.length + 3}>
+                        {drafting === c.id && (
+                          <ChasePanel clientId={c.id} name={c.name} email={emails[c.id] ?? null} items={c.items} allItems={items ?? []} pays={pays}
+                            reminders={reminders.filter((r) => r.client_id === c.id)} instructions={instructions} onInstructions={setInstructions}
+                            onSent={() => { loadReminders(); }} onClose={() => setDrafting(null)} />
+                        )}
                         <table className="small">
                           <thead><tr><th>PN</th><th>SOA no.</th><th>Billed on</th><th>Due</th><th>Step</th><th className="num">Billed</th><th className="num">Paid</th><th className="num">Balance</th><th></th></tr></thead>
                           <tbody>
@@ -127,5 +159,98 @@ export default function Collections() {
         </>
       )}
     </>
+  );
+}
+
+/** A reminder for one client: tone from their payment history and the age of the debt; copy or open in email, then log it. */
+function ChasePanel({ clientId, name, email, items, allItems, pays, reminders, instructions, onInstructions, onSent, onClose }: {
+  clientId: string; name: string; email: string | null; items: Item[]; allItems: Item[]; pays: Pay[]; reminders: Reminder[];
+  instructions: string | null; onInstructions: (v: string | null) => void; onSent: () => void; onClose: () => void;
+}) {
+  const { profile } = useAuth();
+  const isOwner = profile?.role === "owner";
+  const now = today();
+  const overdue = items.filter((i) => i.t.balance > 0 && i.age !== "current" && i.due);
+  const jobIds = new Set(allItems.filter((i) => i.job.client_id === clientId).map((i) => i.job.id));
+  const mine = pays.filter((p) => jobIds.has(p.job_id));
+  // Payment history: each fully paid billing of this client, its last payment date against its due date.
+  const history = allItems.filter((i) => i.job.client_id === clientId && i.t.total > 0 && i.t.balance <= 0 && i.due)
+    .map((i) => ({ due: i.due!, paidOn: mine.filter((p) => p.job_id === i.job.id).map((p) => p.paid_on).sort().pop() ?? i.due! }));
+  const payer = payerScore(history);
+  const maxDays = Math.max(0, ...overdue.map((i) => daysFrom(i.due!, now)));
+  const [tone, setTone] = useState<Tone>(toneFor(payer, maxDays));
+  const [to, setTo] = useState(email ?? "");
+  const draft = draftReminder({
+    client: name, tone, today: now, sender: profile?.full_name || profile?.email || "",
+    paymentInstructions: instructions, withholdsTax: mine.some((p) => Number(p.ewt_amount) > 0),
+    items: overdue.map((i) => ({ pn: i.job.job_no, soa: i.job.soa_no ?? null, billedOn: i.job.billed_on, due: i.due, daysOverdue: daysFrom(i.due!, now), balance: i.t.balance })),
+  });
+  const [subject, setSubject] = useState(draft.subject);
+  const [body, setBody] = useState(draft.body);
+  useEffect(() => { setSubject(draft.subject); setBody(draft.body); }, [tone, instructions]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (email && !to) setTo(email); }, [email]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [msg, setMsg] = useState("");
+  const [editInstr, setEditInstr] = useState(false);
+  const [instrText, setInstrText] = useState(instructions ?? "");
+  const recentPay = mine.filter((p) => daysFrom(p.paid_on, now) <= 14).map((p) => p.paid_on).sort().pop();
+  const lastReminder = reminders[0];
+  const recentReminder = lastReminder && daysFrom(lastReminder.sent_at.slice(0, 10), now) < 7;
+  const total = overdue.reduce((s, i) => s + i.t.balance, 0);
+
+  async function copy() {
+    try { await navigator.clipboard.writeText(`${subject}\n\n${body}`); setMsg("Copied. Paste it into your email or messaging app."); }
+    catch { setMsg("Could not copy here; select the text and copy it."); }
+  }
+  async function logSent() {
+    const { data: u } = await supabase.auth.getUser();
+    const { error } = await supabase.from("collection_reminders").insert({ client_id: clientId, sent_by: u.user?.id, tone, total, pns: overdue.map((i) => i.job.job_no), to_email: to.trim() || null });
+    if (error) { setMsg(error.message); return; }
+    setMsg("Recorded as sent."); onSent();
+  }
+  async function saveInstructions() {
+    const v = instrText.trim() || null;
+    const { error } = await supabase.from("bir_settings").update({ payment_instructions: v }).eq("id", true);
+    if (error) { setMsg(error.message); return; }
+    onInstructions(v); setEditInstr(false); setMsg("Payment instructions saved for all reminders.");
+  }
+
+  return (
+    <section className="chase card">
+      <div className="row spread wrap">
+        <h3>Reminder to {name} · {peso(total)} overdue</h3>
+        <button type="button" className="ghost small" onClick={onClose}>Close</button>
+      </div>
+      {recentPay && <p className="warn" role="status">A payment was recorded on {dayLabel(recentPay)}. Check it is applied before sending.</p>}
+      {recentReminder && <p className="warn" role="status">A reminder was already sent on {dayLabel(lastReminder.sent_at.slice(0, 10))}. Consider waiting a few more days.</p>}
+      {!instructions && <p className="warn">No payment instructions yet (bank account, check payee). {isOwner ? "Add them with Payment instructions below; they go into every reminder." : "Ask the owner to add them."}</p>}
+      <div className="grid">
+        <label>Tone
+          <select value={tone} onChange={(e) => setTone(e.target.value as Tone)}>
+            {(Object.keys(TONE_LABEL) as Tone[]).map((t) => <option key={t} value={t}>{TONE_LABEL[t]}</option>)}
+          </select>
+          <span className="muted small">Suggested from: {PAYER_LABEL[payer]}; oldest {maxDays} days overdue.</span>
+        </label>
+        <label>To<input type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="client's email" /></label>
+      </div>
+      <label>Subject<input value={subject} onChange={(e) => setSubject(e.target.value)} /></label>
+      <label>Message<textarea rows={16} value={body} onChange={(e) => setBody(e.target.value)} /></label>
+      <div className="row wrap">
+        <button type="button" onClick={copy}>Copy</button>
+        <a className="button-like" href={mailtoLink(to, subject, body)}>Open in email</a>
+        <button type="button" className="ghost" onClick={logSent}>I sent it</button>
+        {isOwner && <button type="button" className="link" onClick={() => setEditInstr(!editInstr)}>Payment instructions…</button>}
+        {msg && <span className="ok-text" role="status">{msg}</span>}
+      </div>
+      {editInstr && (
+        <div className="chase-instr">
+          <label>Payment instructions (in every reminder)
+            <textarea rows={4} maxLength={800} value={instrText} onChange={(e) => setInstrText(e.target.value)}
+              placeholder="e.g. Please deposit to: [bank], account name VSA Customs Brokerage, account no. [number]. Checks payable to VSA Customs Brokerage." />
+          </label>
+          <button type="button" onClick={saveInstructions}>Save instructions</button>
+        </div>
+      )}
+      <p className="muted small">Nothing is sent by the app. Send it from your own email or messaging app, then press I sent it so the office knows.</p>
+    </section>
   );
 }

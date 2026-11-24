@@ -624,3 +624,23 @@ tr.voided td:last-child, tr.voided td:nth-last-child(2) { text-decoration: none;
   .trip-sheet-trips td { height: 30px; }
   .trip-sheet { border: none; border-radius: 0; max-width: none; margin: 0; padding: 0; }
 }
+/* Help / staff guide */
+.help { max-width: 860px; }
+.help input[type=search] { width: 100%; margin: 4px 0 12px; }
+.guide summary { cursor: pointer; list-style: revert; min-height: 44px; display: flex; align-items: center; gap: 6px; }
+.guide summary::before { content: "▸"; color: var(--accent, #0b5cab); }
+.guide[open] summary::before { content: "▾"; }
+.guide summary::-webkit-details-marker { display: none; }
+.guide summary { list-style: none; }
+.guide summary h2 { display: inline; font-size: 1.05rem; margin: 0; }
+.card.guide { padding-top: 6px; padding-bottom: 6px; }
+.card.guide[open] { padding-bottom: 14px; }
+.guide-meta { display: grid; grid-template-columns: 1fr; gap: 4px; margin: 10px 0; }
+.guide-meta div { display: flex; gap: 8px; }
+.guide-meta dt { font-weight: 700; min-width: 4em; }
+.guide-meta dd { margin: 0; }
+.guide-steps { padding-left: 1.4em; line-height: 1.55; }
+.guide-steps li { margin-bottom: 6px; }
+.guide-if th { text-align: left; width: 38%; vertical-align: top; font-weight: 600; }
+.guide-group { margin: 18px 0 8px; font-size: 1rem; color: var(--muted, #555); }
+@media print { .help { max-width: none; } .guide { break-inside: avoid; border: none; box-shadow: none; } }

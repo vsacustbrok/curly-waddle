@@ -18,6 +18,7 @@ const Team = lazy(() => import("./pages/Team"));
 const Shipments = lazy(() => import("./pages/Shipments"));
 const Security = lazy(() => import("./pages/Security"));
 const RiderSheet = lazy(() => import("./pages/RiderSheet"));
+const Help = lazy(() => import("./pages/Help"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const Alerts = lazy(() => import("./pages/Alerts"));
@@ -97,7 +98,7 @@ export default function App() {
             <img src="/logo.webp" alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} />
             <strong>VSA Customs Brokerage</strong>
           </span>
-          <nav><NavLink to="/riders">Rider itinerary</NavLink></nav>
+          <nav><NavLink to="/riders">Rider itinerary</NavLink><NavLink to="/help">Help</NavLink></nav>
           <span className="who">
             {profile.full_name || profile.email} <span className="badge">{pretty(role)}</span>
             <LayoutToggle />
@@ -110,6 +111,7 @@ export default function App() {
             <Routes>
               <Route path="/riders" element={<Riders />} />
               <Route path="/riders/sheet/:riderId/:date" element={<RiderSheet />} />
+              <Route path="/help" element={<Help />} />
               <Route path="*" element={<Navigate to="/riders" />} />
             </Routes>
           </Suspense>
@@ -139,6 +141,7 @@ export default function App() {
           <NavLink to="/clients">Clients</NavLink>
           {role === "owner" && <NavLink to="/team">Team</NavLink>}
           {role === "owner" && <NavLink to="/security">Security</NavLink>}
+          <NavLink to="/help">Help</NavLink>
         </nav>
         <span className="who">
           {profile.full_name || profile.email} <span className="badge">{pretty(role)}</span>
@@ -163,6 +166,7 @@ export default function App() {
           <Route path="/collections" element={role === "owner" || role === "billing" ? <Collections /> : <Navigate to="/" />} />
           <Route path="/riders" element={<Riders />} />
           <Route path="/riders/sheet/:riderId/:date" element={<RiderSheet />} />
+          <Route path="/help" element={<Help />} />
           <Route path="/bir-books" element={role === "owner" || role === "billing" ? <BirBooks /> : <Navigate to="/" />} />
           <Route path="/bir/:id" element={<BirPrint />} />
           <Route path="/jobs/:jobId/invoice-preview" element={<BirPrint />} />

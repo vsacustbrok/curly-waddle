@@ -19,6 +19,7 @@ const Shipments = lazy(() => import("./pages/Shipments"));
 const Security = lazy(() => import("./pages/Security"));
 const RiderSheet = lazy(() => import("./pages/RiderSheet"));
 const Help = lazy(() => import("./pages/Help"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const Alerts = lazy(() => import("./pages/Alerts"));
@@ -127,6 +128,7 @@ export default function App() {
           <strong>VSA Customs Brokerage</strong>
         </span>
         <nav>
+          {role === "owner" && <NavLink to="/dashboard">Dashboard</NavLink>}
           <NavLink to="/" end>Status board</NavLink>
           <NavLink to="/shipments">Shipments</NavLink>
           <AlertsLink />
@@ -167,6 +169,7 @@ export default function App() {
           <Route path="/riders" element={<Riders />} />
           <Route path="/riders/sheet/:riderId/:date" element={<RiderSheet />} />
           <Route path="/help" element={<Help />} />
+          <Route path="/dashboard" element={role === "owner" ? <Dashboard /> : <Navigate to="/" />} />
           <Route path="/bir-books" element={role === "owner" || role === "billing" ? <BirBooks /> : <Navigate to="/" />} />
           <Route path="/bir/:id" element={<BirPrint />} />
           <Route path="/jobs/:jobId/invoice-preview" element={<BirPrint />} />

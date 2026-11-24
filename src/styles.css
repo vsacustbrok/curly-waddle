@@ -651,3 +651,33 @@ tr.voided td:last-child, tr.voided td:nth-last-child(2) { text-decoration: none;
 .chase label { display: block; margin-bottom: 8px; }
 .chase input { width: 100%; }
 .chase-instr { margin-top: 10px; }
+/* Owner's dashboard */
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 16px; align-items: start; }
+.dash .tile-link { text-decoration: none; color: inherit; }
+.dash .tile-link:hover { outline: 2px solid var(--line); }
+.dash .warn-num { color: var(--error); }
+.setup-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.setup-list li { display: flex; gap: 10px; align-items: baseline; }
+.setup-mark { width: 1.2em; text-align: center; font-weight: 700; }
+.setup-list li.done { color: var(--muted); }
+.setup-list li.done .setup-mark { color: var(--ok); }
+.setup-list li.todo .setup-mark { color: var(--warn); }
+/* Charts: colours from the validated reference palette (slot 1 blue, slot 2 orange) */
+.viz-root { --series-1: #2a78d6; --series-2: #eb6834; --grid: #e7e8ea; --axis: #b9bec6; }
+.viz svg { width: 100%; height: auto; display: block; overflow: visible; }
+.viz-wrap { position: relative; }
+.viz-s1 { fill: var(--series-1); background: var(--series-1); }
+.viz-s2 { fill: var(--series-2); background: var(--series-2); }
+.viz-grid { stroke: var(--grid); stroke-width: 1; }
+.viz-axis { stroke: var(--axis); stroke-width: 1; }
+.viz-tick { font-size: 11px; fill: var(--muted); }
+.viz-label { font-size: 12px; fill: var(--text); }
+.viz-value { font-size: 12px; fill: var(--text); font-variant-numeric: tabular-nums; }
+.viz g.on .viz-label, .viz g.on .viz-value { font-weight: 700; }
+.viz-band { fill: transparent; }
+.viz-band.on { fill: rgb(20 80 140 / .06); }
+.viz-legend { display: flex; gap: 14px; font-size: 13px; color: var(--muted); }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+.viz-tip { position: absolute; top: 4px; transform: translateX(-50%); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / .12); font-size: 12px; display: grid; gap: 2px; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.viz-head { margin-bottom: 4px; }

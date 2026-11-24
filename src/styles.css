@@ -692,3 +692,4 @@ tr.selected td { background: #eef4fb; }
   .advance-card .print-only { display: flex; }
   .advance-card button { display: none !important; }
 }
+.permit-banner { padding: 8px 12px; border-radius: 8px; margin: 0 0 10px; }

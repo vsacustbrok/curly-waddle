@@ -7,6 +7,8 @@ import { peso } from "../lib/billing";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { today } from "../lib/types";
+import { loadPermits } from "./PermitBanner";
+import { WARN_DAYS, stateOf, warningText, type Permit } from "../lib/permits";
 import { STATUS_LABEL, dayLabel } from "../lib/types";
 
 type Row = AlertRow;
@@ -116,6 +118,7 @@ export default function Alerts() {
           })}
         </>
       )}
+      <PermitAlerts />
       <FreeRules onSaved={reload} />
     </>
   );
@@ -198,6 +201,27 @@ function FreeRules({ onSaved }: { onSaved: () => void }) {
           <button>Add</button>
         </form>
       )}
+    </section>
+  );
+}
+
+/** Permits and accreditations lapsed or lapsing within WARN_DAYS days. */
+function PermitAlerts() {
+  const [list, setList] = useState<Permit[]>([]);
+  useEffect(() => { loadPermits(true).then((all) => setList(all.filter((p) => ["expired", "soon"].includes(stateOf(p, today())))), () => {}); }, []);
+  if (!list.length) return null;
+  const now = today();
+  return (
+    <section className="card alert-group soon">
+      <h2>Permits and accreditations <span className="count">{list.length}</span></h2>
+      <p className="muted small">Expired, or expiring within {WARN_DAYS} days.</p>
+      <ul className="small">
+        {list.map((p) => (
+          <li key={p.id}><span className={"alert-chip " + (stateOf(p, now) === "expired" ? "overdue" : "soon")}>{warningText(p, now)}</span>{" "}
+            {p.clients?.name ?? "VSA (office)"}{p.reference_no ? ` · no. ${p.reference_no}` : ""}</li>
+        ))}
+      </ul>
+      <Link to="/permits">Open permits</Link>
     </section>
   );
 }

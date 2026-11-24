@@ -12,6 +12,7 @@ import {
 import { partsOf, summarize, summaryRows } from "../lib/shipment";
 import { nameScreenshot, runScan, uploadDocs } from "../lib/docs";
 import JobFields, { ConfirmChanges, describeChanges, emptyJob, findDuplicates, fromJob, today, toRow, useFormHistory } from "./JobFields";
+import { PermitBanner } from "./PermitBanner";
 
 const fmt = (iso: string) => new Date(iso).toLocaleString();
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
@@ -236,6 +237,7 @@ export default function JobFile() {
 
   return (
     <>
+      <PermitBanner clientId={job.client_id} />
       <div className="row spread">
         <h1>{job.job_no} <span className={"badge status-" + job.status}>{STATUS_LABEL[job.status]}</span></h1>
         <div className="row">

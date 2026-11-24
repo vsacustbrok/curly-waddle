@@ -11,6 +11,7 @@ import {
   CURRENCIES, PORTS, REQUIRED_CHOICES, STAGES, VASPS, downloadText, dutiableValue, exportRecord, partsOf, stageOf, toCsv, type Line,
 } from "../lib/audit";
 import { money } from "../lib/billing";
+import { PermitBanner } from "./PermitBanner";
 
 type Light = "red" | "yellow" | "green";
 type Review = { id: number; issue_key: string; reason: string; reviewed_by_name: string | null; reviewed_at: string };
@@ -188,6 +189,7 @@ function AuditShipment({ id }: { id: string }) {
   return (
     <>
       <p className="no-print"><Link to="/pre-lodgment-audit">← All shipments to audit</Link></p>
+      <PermitBanner clientId={job.client_id} />
       <div className="audit-head">
         <div>
           <h1>Pre-Lodgment Audit · {job.job_no}</h1>

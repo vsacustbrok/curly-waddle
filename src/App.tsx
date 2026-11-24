@@ -21,6 +21,7 @@ const RiderSheet = lazy(() => import("./pages/RiderSheet"));
 const Help = lazy(() => import("./pages/Help"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Advances = lazy(() => import("./pages/Advances"));
+const Permits = lazy(() => import("./pages/Permits"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const Alerts = lazy(() => import("./pages/Alerts"));
@@ -143,6 +144,7 @@ export default function App() {
           <NavLink to="/duties">Duties & Taxes</NavLink>
           <NavLink to="/riders">Riders</NavLink>
           <NavLink to="/clients">Clients</NavLink>
+          <NavLink to="/permits">Permits</NavLink>
           {role === "owner" && <NavLink to="/team">Team</NavLink>}
           {role === "owner" && <NavLink to="/security">Security</NavLink>}
           <NavLink to="/help">Help</NavLink>
@@ -172,6 +174,7 @@ export default function App() {
           <Route path="/riders/sheet/:riderId/:date" element={<RiderSheet />} />
           <Route path="/help" element={<Help />} />
           <Route path="/advances" element={<Advances />} />
+          <Route path="/permits" element={<Permits />} />
           <Route path="/dashboard" element={role === "owner" ? <Dashboard /> : <Navigate to="/" />} />
           <Route path="/bir-books" element={role === "owner" || role === "billing" ? <BirBooks /> : <Navigate to="/" />} />
           <Route path="/bir/:id" element={<BirPrint />} />
